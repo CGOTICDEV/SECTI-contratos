@@ -32,7 +32,6 @@ import { Contract } from './types/contract';
 import { getContractStatus } from './utils/contract-helpers';
 import { Toaster, toast } from 'sonner';
 
-// Firebase imports
 import { auth, db, addUser, subscribeUser } from '../firebase';
 import {
   signInWithEmailAndPassword,
@@ -56,7 +55,6 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
 
-  // view state: dashboard or profile
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard');
   const [userProfile, setUserProfile] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,13 +62,11 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | undefined>();
 
-  // listen for auth state changes
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
       if (user) {
-        // subscribe to profile doc
         unsubUser = subscribeUser(user.uid, setUserProfile);
       } else {
         setUserProfile(null);
@@ -83,7 +79,6 @@ function App() {
     };
   }, []);
 
-  // subscribe to firestore contracts when authenticated
   useEffect(() => {
     if (!isAuthenticated) return;
     const q = collection(db, 'contracts');
@@ -148,7 +143,6 @@ function App() {
     try {
       if (editingContract) {
         const ref = doc(db, 'contracts', editingContract.id);
-        // prepare history entry
         const after: Contract = { ...editingContract, ...contractData } as Contract;
         const entry = {
           timestamp: new Date().toISOString(),
@@ -162,7 +156,6 @@ function App() {
         } as any);
         toast.success('Sincronização concluída: Registro atualizado.');
       } else {
-        // when creating a new contract ensure gestor/fiscal reflect creator
         const newContract: any = { ...contractData, history: [] };
         if (userProfile) {
           const nameOrEmail = userProfile.displayName || userProfile.email;
@@ -187,7 +180,6 @@ function App() {
     setEditingContract(undefined);
   };
 
-  // translate firebase auth error codes into Portuguese
   function translateAuthError(code: string | undefined, defaultMsg: string) {
     switch (code) {
       case 'auth/invalid-email':
@@ -211,7 +203,6 @@ function App() {
     }
   }
 
-  // authentication helpers
   const handleLogin = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -235,7 +226,6 @@ function App() {
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: username });
       }
-      // create corresponding Firestore user document
       try {
         await addUser({
           uid: userCred.user.uid,
@@ -247,7 +237,6 @@ function App() {
         });
       } catch (fireErr) {
         console.error('Erro ao criar usuário no Firestore', fireErr);
-        // non-blocking: we still consider registration successful
       }
       toast.success(`Conta criada como ${role === 'gestor' ? 'Gestor' : 'Fiscal'} e você está logado.`);
     } catch (err: any) {
@@ -260,7 +249,6 @@ function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // onAuthStateChanged listener will update isAuthenticated
       setCurrentPage('dashboard');
       setUserProfile(null);
       toast.success('Desconectado.');
@@ -270,7 +258,6 @@ function App() {
     }
   };
 
-  // global toaster rendered regardless of auth state
   return (
     <>
       <Toaster position="top-right" richColors />

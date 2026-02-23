@@ -66,7 +66,6 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
 
   const [formData, setFormData] = useState<Partial<Contract>>(computeInitial());
 
-  // sync when contract or user changes
   React.useEffect(() => {
     if (contract) {
       setFormData(contract);

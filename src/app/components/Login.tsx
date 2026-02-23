@@ -43,7 +43,6 @@ export function Login({ onLogin, onRegister }: AuthProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Validações
   const emailValid = email.toLowerCase().endsWith(sectiDomain);
   const isLoginFormComplete = emailValid && password.trim();
   const isRegisterFormComplete =
@@ -97,11 +96,8 @@ export function Login({ onLogin, onRegister }: AuthProps) {
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden font-sans antialiased text-secti-text">
 
-      {/* BACKGROUND SPLIT DIAGONAL */}
-      {/* Lado Direito / Inferior: Cor Sólida Institucional */}
       <div className="absolute inset-0 bg-[#0B2046]" />
 
-      {/* Lado Esquerdo / Superior: Imagem com Clip Path */}
       <div
         className="absolute inset-0 z-0 transition-all duration-700 ease-in-out"
         style={{
@@ -111,17 +107,12 @@ export function Login({ onLogin, onRegister }: AuthProps) {
           clipPath: 'polygon(0 0, 100% 0, 0 100%)',
         }}
       >
-        {/* Overlay para contraste */}
         <div className="absolute inset-0 bg-[#0B2046]/40 backdrop-blur-[1px]" />
       </div>
 
-      {/* CARTÃO DE AUTENTICAÇÃO */}
       <div className="relative z-10 w-full max-w-[420px] p-4 animate-in fade-in zoom-in duration-500">
         <div className="bg-white border border-secti-border shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-xl overflow-hidden">
-
-          {/* Header */}
           <header className="bg-[#0B2046] p-8 text-center border-b-4 border-[#00D1FF]">
-            {/* logo GOVBA placeholder */}
             <img
               src="/MARCA GOVBA 0126 - DO LADO DA GENTE__H.png"
               alt="Marca GOVBA"
@@ -144,7 +135,6 @@ export function Login({ onLogin, onRegister }: AuthProps) {
             </section>
 
             <div className="space-y-4">
-              {/* Identificação Visual (Apenas Registro) */}
               {isRegistering && (
                 <div className="flex flex-col items-center space-y-3 pb-2">
                   <Label className="text-[10px] font-bold uppercase text-secti-muted self-start ml-1">Identificação Visual</Label>
@@ -244,8 +234,6 @@ export function Login({ onLogin, onRegister }: AuthProps) {
                 )}
               </Button>
             </div>
-
-            {/* Alternância Login/Registro */}
             <footer className="pt-4 border-t border-secti-border flex flex-col items-center gap-3">
               <button
                 onClick={() => setIsRegistering(!isRegistering)}
