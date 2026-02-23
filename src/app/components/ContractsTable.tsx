@@ -1,0 +1,111 @@
+import { Contract } from '../types/contract';
+import { getContractStatus, formatCurrency, formatDate } from '../utils/contract-helpers';
+import { Badge } from './ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import { Pencil } from 'lucide-react';
+import { Button } from './ui/button';
+
+interface ContractsTableProps {
+  contracts: Contract[];
+  onEdit?: (contract: Contract) => void;
+}
+
+export function ContractsTable({ contracts, onEdit }: ContractsTableProps) {
+  if (contracts.length === 0) {
+    return (
+      <div className="text-center py-12 bg-white rounded-lg border border-secti-border">
+        <p className="text-secti-muted font-sans italic">Nenhum contrato detectado no radar com os filtros selecionados.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-secti-surface rounded-lg border border-secti-border overflow-hidden shadow-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50 border-b border-secti-border">
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider">Status</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider font-mono">Nº Contrato</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider">Empresa / Objeto</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider">Gestor / Fiscal</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider">Vigência Atual</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider">Saldo & Garantia</TableHead>
+            <TableHead className="text-xs font-semibold text-secti-muted uppercase tracking-wider text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {contracts.map((contract) => {
+            const status = getContractStatus(contract);
+            return (
+              <TableRow 
+                key={contract.id} 
+                className="bg-white hover:bg-gray-50 transition-colors border-b border-secti-border last:border-0"
+              >
+                <TableCell>
+                  <Badge
+                    className={`
+                      ${status.bgColor} ${status.textColor} ${status.borderColor}
+                      border px-3 py-1 font-medium rounded-md text-xs
+                    `}
+                  >
+                    {status.label}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-mono text-sm font-bold text-secti-primary">
+                  {contract.numeroContrato}
+                </TableCell>
+                <TableCell>
+                  <div className="max-w-xs">
+                    <p className="text-sm font-semibold text-secti-text truncate">{contract.empresa}</p>
+                    <p className="text-xs text-secti-muted truncate">{contract.objeto}</p>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">
+                    <p className="font-medium text-secti-text">{contract.gestor}</p>
+                    <p className="text-xs text-secti-muted">{contract.fiscal}</p>
+                  </div>
+                </TableCell>
+                <TableCell className="font-mono text-sm text-secti-text">
+                  {formatDate(contract.vigenciaAtual)}
+                </TableCell>
+                <TableCell>
+                  <div className="font-mono text-sm">
+                    <p className="font-bold text-secti-primary">
+                      {formatCurrency(contract.saldoDisponivel)}
+                    </p>
+                    {contract.garantia && (
+                      <p className="text-[10px] uppercase text-secti-muted truncate max-w-[150px]">
+                        {contract.garantia}
+                      </p>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit?.(contract)}
+                      className="h-8 w-8 p-0 text-secti-primary hover:bg-secti-accent/10 focus:ring-2 focus:ring-secti-accent"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
