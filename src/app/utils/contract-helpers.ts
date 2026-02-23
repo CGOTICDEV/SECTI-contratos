@@ -1,4 +1,4 @@
-import { Contract, StatusInfo } from '../types/contract';
+import { Contract, StatusInfo, HistoryChange } from '../types/contract';
 import { format } from 'date-fns';
 
 export function calculateDaysRemaining(vigenciaAtual: string): number {
@@ -70,4 +70,42 @@ export function formatDate(dateString: string): string {
   } catch {
     return '-';
   }
+}
+
+/**
+ * Basic Brazilian phone formatter. Converts a string of digits into
+ * the pattern "(DD) NNNN-NNNN" or "(DD) NNNNN-NNNN" depending on length.
+ * Any non-digit characters are stripped before formatting.
+ */
+export function formatPhoneNumber(value?: string): string {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  // 11 or more: assume mobile with 5-digit prefix
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}/**
+ * Build a minimal list of changed fields by comparing a previous contract state with
+ * a new one.  This helps keep the stored history light and focused on what really
+ * changed, along with the old value.
+ */
+export function computeChanges(
+  before: Partial<Contract> | null,
+  after: Partial<Contract>
+): HistoryChange[] {
+  const changes: HistoryChange[] = [];
+  const base = before || ({} as Contract);
+
+  for (const key of Object.keys(after) as (keyof Contract)[]) {
+    const oldVal = (base as any)[key];
+    const newVal = (after as any)[key];
+    if (newVal === undefined) continue;
+    if (oldVal !== newVal) {
+      changes.push({ field: key, before: oldVal ?? null, after: newVal });
+    }
+  }
+
+  return changes;
 }

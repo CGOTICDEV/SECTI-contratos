@@ -83,6 +83,16 @@ export function subscribeUser(uid: string, callback: (userData: any | null) => v
   });
 }
 
+// helper to update user document; partial updates allowed
+export function updateUser(uid: string, data: Partial<any>) {
+  const ref = doc(db, 'users', uid);
+  // Firestore rejects fields that are explicitly `undefined`, so strip them
+  const filtered = Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  );
+  return updateDoc(ref, filtered);
+}
+
 // export auth utilities in case they're needed elsewhere
 export {
   signInWithEmailAndPassword,

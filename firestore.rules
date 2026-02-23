@@ -4,15 +4,22 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // only authenticated users can access the contracts collection
     match /contracts/{contractId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && request.auth.token.email_verified == true;
       // further validation can be added here, e.g. ensure required fields exist
     }
 
     // users collection: each user can write their own profile
     match /users/{userId} {
+      // user record may be created immediately after signup (verification pending)
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow update, delete: if false; // editing profile via security rules? handle in backend
+      // profile data may only be read once the e‑mail has been verified
+      allow read: if request.auth != null && request.auth.uid == userId && request.auth.token.email_verified == true;
+      // allow the owner to modify their own profile once their e‑mail is verified
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.auth.token.email_verified == true;
+      // no one should be able to delete a profile directly from the client
+      allow delete: if false;
     }
 
     // deny access to any other collections/documents by default

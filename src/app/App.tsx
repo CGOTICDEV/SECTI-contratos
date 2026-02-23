@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FileText,
   AlertTriangle,
@@ -29,7 +29,8 @@ import {
   SidebarProvider,
 } from './components/ui/sidebar';
 import { Contract } from './types/contract';
-import { getContractStatus } from './utils/contract-helpers';
+import { UserProfile } from './types/user';
+import { getContractStatus, computeChanges } from './utils/contract-helpers';
 import { Toaster, toast } from 'sonner';
 
 import { auth, db, addUser, subscribeUser } from '../firebase';
@@ -39,6 +40,12 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  sendEmailVerification,
+  fetchSignInMethodsForEmail,
 } from 'firebase/auth';
 import {
   collection,
@@ -54,9 +61,12 @@ type FilterType = 'all' | 'critical' | 'warning' | 'safe';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const creatingUserRef = useRef(false);
 
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard');
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // flag used by the auth state listener to avoid signing the user out while
+  // we're still in the middle of creating their profile document.
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,7 +74,35 @@ function App() {
 
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+
+    // handle incoming email link sign-in
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let storedEmail = window.localStorage.getItem('emailForSignIn') || '';
+      if (!storedEmail) {
+        storedEmail = window.prompt('Confirme seu e‑mail para concluir o login via link:') || '';
+      }
+      if (storedEmail) {
+        signInWithEmailLink(auth, storedEmail, window.location.href)
+          .then(() => {
+            window.localStorage.removeItem('emailForSignIn');
+            toast.success('Autenticado via link!');
+          })
+          .catch((err) => {
+            console.error(err);
+            const msg = translateAuthError(err.code, 'Falha no login via link.');
+            toast.error(msg);
+          });
+      }
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+  
+      if (user && !user.emailVerified && !creatingUserRef.current) {
+        await signOut(auth);
+        setIsAuthenticated(false);
+        return;
+      }
+
       setIsAuthenticated(!!user);
       if (user) {
         unsubUser = subscribeUser(user.uid, setUserProfile);
@@ -144,17 +182,23 @@ function App() {
       if (editingContract) {
         const ref = doc(db, 'contracts', editingContract.id);
         const after: Contract = { ...editingContract, ...contractData } as Contract;
-        const entry = {
-          timestamp: new Date().toISOString(),
-          user: userProfile?.email || userProfile?.uid || null,
-          before: editingContract,
-          after,
-        };
-        await updateDoc(ref, {
-          ...contractData,
-          history: arrayUnion(entry),
-        } as any);
-        toast.success('Sincronização concluída: Registro atualizado.');
+        // compute which fields actually changed
+        const changes = computeChanges(editingContract, after);
+        if (changes.length > 0) {
+          const entry = {
+            timestamp: new Date().toISOString(),
+            user: userProfile?.email || userProfile?.uid || null,
+            changes,
+          };
+          await updateDoc(ref, {
+            ...contractData,
+            history: arrayUnion(entry),
+          } as any);
+          toast.success('Sincronização concluída: Registro atualizado.');
+        } else {
+          // nothing to update
+          toast.info('Nenhuma alteração detectada.');
+        }
       } else {
         const newContract: any = { ...contractData, history: [] };
         if (userProfile) {
@@ -162,11 +206,12 @@ function App() {
           if (userProfile.role === 'gestor') newContract.gestor = nameOrEmail;
           if (userProfile.role === 'fiscal') newContract.fiscal = nameOrEmail;
         }
+        // creation entry: record all initial values as changes
+        const changes = computeChanges(null, newContract);
         const createdEntry = {
           timestamp: new Date().toISOString(),
           user: userProfile?.email || userProfile?.uid || null,
-          before: null,
-          after: newContract,
+          changes,
         };
         newContract.history = [createdEntry];
         await addDoc(collection(db, 'contracts'), newContract);
@@ -204,12 +249,79 @@ function App() {
   }
 
   const handleLogin = async (email: string, password: string) => {
+    // guard against invalid inputs coming from callers; the UI usually
+    // performs this check but we add an extra layer to avoid a bad
+    // request reaching Firebase and triggering a 400 invalid-credential
+    if (!email || !password) {
+      toast.error('Por favor informe e‑mail e senha');
+      return;
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      // if account is not verified we immediately log out and inform the user
+      if (cred.user && !cred.user.emailVerified) {
+        // send another verification link just in case
+        await sendEmailVerification(cred.user);
+        await signOut(auth);
+        toast.error(
+          'Sua conta ainda não foi verificada. Enviamos um e‑mail com instruções, confira sua caixa de entrada.'
+        );
+        return;
+      }
       toast.success('Autenticado com sucesso.');
     } catch (err: any) {
       console.error(err);
       const msg = translateAuthError(err.code, 'Falha na autenticação.');
+      toast.error(msg);
+    }
+  };
+
+
+  // utility to check if an auth record exists for the given email
+  const emailExists = async (email: string): Promise<boolean> => {
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      return methods && methods.length > 0;
+    } catch (err) {
+      console.error('error fetching methods for email', err);
+      return false;
+    }
+  };
+
+  const handleForgotPassword = async (email: string) => {
+    try {
+      const exists = await emailExists(email);
+      if (!exists) {
+        toast.error('Nenhuma conta encontrada para o e‑mail informado.');
+        return;
+      }
+      await sendPasswordResetEmail(auth, email);
+      toast.success('Link de recuperação enviado. Verifique sua caixa de entrada.');
+    } catch (err: any) {
+      console.error(err);
+      const msg = translateAuthError(err.code, 'Falha ao enviar e-mail de recuperação.');
+      toast.error(msg);
+    }
+  };
+
+  const handleSendEmailLink = async (email: string) => {
+    try {
+      const exists = await emailExists(email);
+      if (!exists) {
+        toast.error('Nenhuma conta encontrada para o e‑mail informado.');
+        return;
+      }
+      const actionCodeSettings = {
+        url: window.location.origin,
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);
+      toast.success('Link de acesso enviado. Verifique seu e‑mail institucional.');
+    } catch (err: any) {
+      console.error(err);
+      const msg = translateAuthError(err.code, 'Falha ao enviar link de acesso.');
       toast.error(msg);
     }
   };
@@ -219,30 +331,48 @@ function App() {
     email: string,
     password: string,
     role: 'gestor' | 'fiscal',
-    photoBase64: string
+    photoBase64: string,
+    phone?: string,
+    department?: string
   ) => {
+    creatingUserRef.current = true;
     try {
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      // send verification email immediately
+      if (userCred.user) {
+        await sendEmailVerification(userCred.user);
+      }
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: username });
       }
       try {
+        // we use the UID as the document ID to satisfy the security rule
         await addUser({
           uid: userCred.user.uid,
           email: userCred.user.email,
           displayName: username,
           role,
           photoBase64,
+          phone,
+          department,
           createdAt: new Date().toISOString(),
         });
       } catch (fireErr) {
         console.error('Erro ao criar usuário no Firestore', fireErr);
       }
-      toast.success(`Conta criada como ${role === 'gestor' ? 'Gestor' : 'Fiscal'} e você está logado.`);
+      // log the user out so they cannot bypass verification
+      await signOut(auth);
+      toast.success(
+        `Conta criada como ${
+          role === 'gestor' ? 'Gestor' : 'Fiscal'
+        }. Verifique seu e‑mail para ativar a conta.`
+      );
     } catch (err: any) {
       console.error(err);
       const msg = translateAuthError(err.code, 'Falha ao criar conta.');
       toast.error(msg);
+    } finally {
+      creatingUserRef.current = false;
     }
   };
 
@@ -262,7 +392,12 @@ function App() {
     <>
       <Toaster position="top-right" richColors />
       {!isAuthenticated ? (
-        <Login onLogin={handleLogin} onRegister={handleRegister} />
+        <Login
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onForgotPassword={handleForgotPassword}
+          onSendEmailLink={handleSendEmailLink}
+        />
       ) : (
         <SidebarProvider>
           <div className="flex min-h-screen w-full bg-[#F8FAFC]">
@@ -273,11 +408,11 @@ function App() {
                   <p className="text-[10px] font-mono opacity-50 uppercase tracking-widest">Administrativo</p>
                 </div>
                 <SidebarGroup>
-                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-6">Frota de Contratos</SidebarGroupLabel>
+                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-6">Ferramentas</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <SidebarMenu>
                       <SidebarMenuItem>
-                        <SidebarMenuButton 
+                        <SidebarMenuButton
                           onClick={() => setCurrentPage('dashboard')}
                           className="px-6 h-12 hover:bg-[#0056B3] transition-colors text-white gap-3"
                         >
@@ -323,41 +458,41 @@ function App() {
               {currentPage === 'profile' ? (
                 <ProfilePage profile={userProfile} />
               ) : (
-                <> 
+                <>
                   <header className="bg-white border-b border-secti-border h-20 flex items-center px-8 sticky top-0 z-10 shadow-sm">
                     <div className="flex flex-col">
                       <h1 className="text-2xl font-bold text-secti-primary font-sans">Monitoramento de Contratos</h1>
                     </div>
                   </header>
 
-              <div className="p-8 max-w-[1600px] mx-auto">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <KpiCard title="Ativos Totais" value={kpis.total} icon={FileText} variant="neutral" isActive={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
-                  <KpiCard title="STATUS + 30 DIAS" value={kpis.critical} icon={AlertTriangle} variant="critical" isActive={activeFilter === 'critical'} onClick={() => setActiveFilter('critical')} />
-                  <KpiCard title="STATUS + 60 DIAS" value={kpis.warning} icon={Clock} variant="warning" isActive={activeFilter === 'warning'} onClick={() => setActiveFilter('warning')} />
-                  <KpiCard title="STATUS + 90 DIAS" value={kpis.safe} icon={CheckCircle2} variant="safe" isActive={activeFilter === 'safe'} onClick={() => setActiveFilter('safe')} />
-                </div>
+                  <div className="p-8 max-w-[1600px] mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                      <KpiCard title="Ativos Totais" value={kpis.total} icon={FileText} variant="neutral" isActive={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
+                      <KpiCard title="STATUS + 30 DIAS" value={kpis.critical} icon={AlertTriangle} variant="critical" isActive={activeFilter === 'critical'} onClick={() => setActiveFilter('critical')} />
+                      <KpiCard title="STATUS + 60 DIAS" value={kpis.warning} icon={Clock} variant="warning" isActive={activeFilter === 'warning'} onClick={() => setActiveFilter('warning')} />
+                      <KpiCard title="STATUS + 90 DIAS" value={kpis.safe} icon={CheckCircle2} variant="safe" isActive={activeFilter === 'safe'} onClick={() => setActiveFilter('safe')} />
+                    </div>
 
-                <div className="bg-white p-6 rounded-lg border border-secti-border shadow-card mb-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="relative w-full max-w-xl">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secti-muted" />
-                      <Input
-                        placeholder="Varredura por empresa, contrato ou gestor..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 border-secti-border font-sans bg-[#F8FAFC]"
-                      />
+                    <div className="bg-white p-6 rounded-lg border border-secti-border shadow-card mb-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="relative w-full max-w-xl">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secti-muted" />
+                          <Input
+                            placeholder="Varredura por empresa, contrato ou gestor..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 border-secti-border font-sans bg-[#F8FAFC]"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-secti-muted uppercase font-mono">Filtro Ativo:</span>
+                          <span className="px-3 py-1 bg-secti-primary/10 text-secti-primary rounded text-xs font-bold font-mono">{activeFilter.toUpperCase()}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-secti-muted uppercase font-mono">Filtro Ativo:</span>
-                      <span className="px-3 py-1 bg-secti-primary/10 text-secti-primary rounded text-xs font-bold font-mono">{activeFilter.toUpperCase()}</span>
-                    </div>
+
+                    <ContractsTable contracts={filteredContracts} onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }} />
                   </div>
-                </div>
-
-                <ContractsTable contracts={filteredContracts} onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }} />
-              </div>
                 </>
               )}
             </main>
@@ -366,12 +501,21 @@ function App() {
               isOpen={isModalOpen}
               onClose={() => { setIsModalOpen(false); setEditingContract(undefined); }}
               onSave={handleSaveContract}
-              contract={editingContract}              currentUser={userProfile}            />
+              contract={editingContract}
+              currentUser={
+                userProfile
+                  ? {
+                      email: userProfile.email,
+                      role: userProfile.role as 'gestor' | 'fiscal' | undefined,
+                      displayName: userProfile.displayName,
+                    }
+                  : undefined
+              } />
           </div>
         </SidebarProvider>
       )}
-      </>
-    );
+    </>
+  );
 }
 
-      export default App;
+export default App;

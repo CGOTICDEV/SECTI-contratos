@@ -1,8 +1,13 @@
+export interface HistoryChange {
+  field: keyof Contract;      // the name of the property that was modified
+  before: any;                // value prior to change (null when creating)
+  after: any;                 // value after change
+}
+
 export interface HistoryEntry {
   timestamp: string;          // ISO string with the moment the change occurred
   user?: string;              // optional user/email responsible for the change
-  before: Contract;           // snapshot of the contract before modification
-  after: Contract;            // snapshot after modification
+  changes: HistoryChange[];   // list of fields that were modified
 }
 
 export interface Contract {

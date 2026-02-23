@@ -64,15 +64,17 @@ Agrupam informações correlatas, funcionando como compartimentos estanques no l
 Este projeto utiliza Firebase Authentication e Firestore para persistência de usuários e contratos.
 
 * Ao cadastrar-se, o operador escolhe sua **função** (`gestor` ou `fiscal`) e pode anexar uma **foto de perfil** em Base64.
-* Após o login, um item “Meu Perfil” aparece na barra lateral permitindo que o usuário visualize seus dados.
+* As inscrições agora geram automaticamente um e‑mail de verificação; a conta só se torna acessível após validação do endereço institucional. O usuário é desconectado após o cadastro e deve confirmar o link no e‑mail para poder efetuar login.
+* Após o login (após verificação), um item “Meu Perfil” aparece na barra lateral permitindo que o usuário visualize seus dados.
 * O documento de usuário tem o `uid` como ID e inclui os campos `email`, `displayName`, `role`, `photoBase64` e `createdAt`.
-* Regras de segurança (`firestore.rules`) limitam leitura/criação dos registros de usuário somente ao próprio UID.
-* A coleção `contracts` permanece aberta para qualquer usuário autenticado.
+* Regras de segurança (`firestore.rules`) limitam leitura/criação dos registros de usuário somente ao próprio UID. A leitura de outros dados (contratos ou perfil) também exige que o e‑mail tenha sido verificado.
+* A coleção `contracts` permanece aberta para qualquer usuário autenticado e verificado.
 
 Para testar:
 1. Ative Email/Password no console Firebase.
 2. Crie conta no app; verifique Firestore>users.
-3. Faça login e gerencie contratos via UI.
+3. Confira seu e‑mail, clique no link de verificação.
+4. Faça login e gerencie contratos via UI.
 
 ### 5.4. Tabelas
 A espinha dorsal do monitoramento de dados.

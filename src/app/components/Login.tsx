@@ -17,8 +17,20 @@ import {
   ChevronLeft,
   Camera,
   UploadCloud,
-  User
+  User,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import { formatPhoneNumber } from '../utils/contract-helpers';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogClose,
+} from './ui/dialog';
 
 const sectiDomain = '@secti.ba.gov.br';
 
@@ -29,11 +41,15 @@ interface AuthProps {
     email: string,
     password: string,
     role: 'gestor' | 'fiscal',
-    photoBase64: string
+    photoBase64: string,
+    phone?: string,
+    department?: string
   ) => void;
+  onForgotPassword: (email: string) => void;
+  onSendEmailLink: (email: string) => void;
 }
 
-export function Login({ onLogin, onRegister }: AuthProps) {
+export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }: AuthProps) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -41,22 +57,33 @@ export function Login({ onLogin, onRegister }: AuthProps) {
   const [role, setRole] = useState<'gestor' | 'fiscal'>('gestor');
   const [photoBase64, setPhotoBase64] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [infoMessage, setInfoMessage] = useState('');
+  const [modalType, setModalType] = useState<'forgot' | 'link' | null>(null);
+  const [modalEmail, setModalEmail] = useState('');
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [department, setDepartment] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const emailValid = email.toLowerCase().endsWith(sectiDomain);
+  const emailNormalized = email.trim().toLowerCase();
+  const emailValid = emailNormalized.endsWith(sectiDomain);
   const isLoginFormComplete = emailValid && password.trim();
   const isRegisterFormComplete =
     username.trim() &&
     emailValid &&
     password.trim() &&
-    photoBase64;
+    photoBase64; // phone/department optional
 
   useEffect(() => {
     if (!isRegistering) {
       setUsername('');
       setRole('gestor');
       setPhotoBase64('');
+      setPhone('');
+      setDepartment('');
     }
+    setInfoMessage('');
   }, [isRegistering]);
 
   const handleAction = async () => {
@@ -75,14 +102,70 @@ export function Login({ onLogin, onRegister }: AuthProps) {
 
     setIsSubmitting(true);
     try {
+      const trimmedEmail = email.trim();
+
       if (isRegistering) {
-        await onRegister(username, email, password, role, photoBase64);
+        const cleanPhone = phone ? phone.replace(/\D/g, '') : undefined;
+        await onRegister(
+          username.trim(),
+          trimmedEmail,
+          password,
+          role,
+          photoBase64,
+          cleanPhone,
+          department || undefined
+        );
+        setIsRegistering(false);
+        setInfoMessage('Solicitação enviada. Verifique seu e‑mail institucional antes de tentar entrar.');
       } else {
-        await onLogin(email, password);
+        await onLogin(trimmedEmail, password);
       }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleForgot = async (emailParam?: string) => {
+    const targetEmail = emailParam ?? email;
+    await onForgotPassword(targetEmail);
+  };
+
+  const handleSendLink = async (emailParam?: string) => {
+    const targetEmail = emailParam ?? email;
+    await onSendEmailLink(targetEmail);
+  };
+
+  const handleModalSubmit = async () => {
+    if (!modalEmail.trim()) return;
+    let tgt = modalEmail;
+    if (!tgt.includes('@')) {
+      tgt = tgt + sectiDomain;
+      setModalEmail(tgt);
+    }
+    if (!tgt.toLowerCase().endsWith(sectiDomain)) {
+      toast.error('E-mail institucional inválido.');
+      return;
+    }
+    setModalSubmitting(true);
+    setInfoMessage('');
+    try {
+      if (modalType === 'forgot') {
+        await onForgotPassword(tgt);
+        setInfoMessage('Link de recuperação enviado.');
+      } else if (modalType === 'link') {
+        await onSendEmailLink(tgt);
+        setInfoMessage('Link de acesso enviado.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Falha ao processar pedido.');
+    } finally {
+      setModalSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    setModalType(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,39 +208,47 @@ export function Login({ onLogin, onRegister }: AuthProps) {
           </header>
 
           <div className="p-8 space-y-6">
-            <section className="text-center">
-              <h2 className="text-lg font-bold text-secti-primary uppercase tracking-tight">
-                {isRegistering ? 'Solicitar Ingresso' : 'Identificação do usuário'}
-              </h2>
-              <p className="text-sm text-secti-muted mt-1">
-                {isRegistering ? 'Cadastre suas credenciais no sistema' : 'Insira suas chaves para acessar o painel'}
-              </p>
-            </section>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAction();
+              }}
+              className="space-y-6"
+            >
+              <section className="text-center">
+                <h2 className="text-lg font-bold text-secti-primary uppercase tracking-tight">
+                  {isRegistering ? 'Solicitar Ingresso' : 'Identificação do usuário'}
+                </h2>
+                <p className="text-sm text-secti-muted mt-1">
+                  {isRegistering ? 'Cadastre suas credenciais no sistema' : 'Insira suas chaves para acessar o painel'}
+                </p>
+              </section>
 
-            <div className="space-y-4">
-              {isRegistering && (
-                <div className="flex flex-col items-center space-y-3 pb-2">
-                  <Label className="text-[10px] font-bold uppercase text-secti-muted self-start ml-1">Identificação Visual</Label>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="relative w-24 h-24 rounded-full border-2 border-dashed border-secti-border bg-gray-50 flex items-center justify-center cursor-pointer hover:border-secti-accent transition-all group overflow-hidden"
-                  >
-                    {photoBase64 ? (
-                      <img src={photoBase64} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center p-2">
-                        <Camera className="w-6 h-6 text-secti-muted mx-auto group-hover:text-secti-accent" />
-                        <span className="text-[8px] text-secti-muted uppercase font-bold block mt-1">Foto</span>
+              <div className="space-y-4">
+                {isRegistering && (
+                  <div className="flex flex-col items-center space-y-3 pb-2">
+                    <Label className="text-[10px] font-bold uppercase text-secti-muted self-start ml-1">Identificação Visual</Label>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="relative w-24 h-24 rounded-full border-2 border-dashed border-secti-border bg-gray-50 flex items-center justify-center cursor-pointer hover:border-secti-accent transition-all group overflow-hidden"
+                    >
+                      {photoBase64 ? (
+                        <img src={photoBase64} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center p-2">
+                          <Camera className="w-6 h-6 text-secti-muted mx-auto group-hover:text-secti-accent" />
+                          <span className="text-[8px] text-secti-muted uppercase font-bold block mt-1">Foto</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-secti-primary/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <UploadCloud className="w-5 h-5 text-white" />
                       </div>
-                    )}
-                    <div className="absolute inset-0 bg-secti-primary/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <UploadCloud className="w-5 h-5 text-white" />
                     </div>
+                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileChange} />
                   </div>
-                  <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileChange} />
-                </div>
-              )}
-
+                )}
+              </div>
+              
               <div className="space-y-4">
                 {isRegistering && (
                   <div className="space-y-2">
@@ -191,38 +282,66 @@ export function Login({ onLogin, onRegister }: AuthProps) {
                 </div>
 
                 {isRegistering && (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">Posto de Serviço</Label>
-                    <Select value={role} onValueChange={(v: 'gestor' | 'fiscal') => setRole(v)}>
-                      <SelectTrigger className="border-secti-border bg-gray-50 h-11">
-                        <SelectValue placeholder="Selecione sua função" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gestor">Gestor</SelectItem>
-                        <SelectItem value="fiscal">Fiscal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">Posto de Serviço</Label>
+                      <Select value={role} onValueChange={(v: 'gestor' | 'fiscal' | 'ccc') => setRole(v as any)}>
+                        <SelectTrigger className="border-secti-border bg-gray-50 h-11">
+                          <SelectValue placeholder="Selecione sua função" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gestor">Gestor</SelectItem>
+                          <SelectItem value="fiscal">Fiscal</SelectItem>
+                          <SelectItem value="ccc">CCC - Coordenação de Convênios e Contratos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">Telefone (opcional)</Label>
+                      <Input
+                        className="border-secti-border bg-gray-50 h-11"
+                        value={phone}
+                        onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+                        placeholder="(xx)xxxxx-xxxx"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">Setor (opcional)</Label>
+                      <Input
+                        className="border-secti-border bg-gray-50 h-11"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">Chave de Acesso</Label>
                   <div className="relative">
                     <Input
-                      type="password"
-                      className="pl-10 border-secti-border bg-gray-50 focus:ring-2 focus:ring-secti-secondary h-11"
+                      type={showPassword ? 'text' : 'password'}
+                      className="pl-10 pr-10 border-secti-border bg-gray-50 focus:ring-2 focus:ring-secti-secondary h-11"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
                     <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secti-muted" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-secti-muted"
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
               </div>
 
               <Button
+                type="submit"
                 className="w-full h-12 bg-[#0B2046] hover:bg-[#0056B3] text-white font-bold uppercase tracking-widest text-xs transition-all shadow-lg active:scale-95 mt-4"
-                onClick={handleAction}
                 disabled={isSubmitting || (isRegistering ? !isRegisterFormComplete : !isLoginFormComplete)}
               >
                 {isSubmitting ? (
@@ -233,7 +352,14 @@ export function Login({ onLogin, onRegister }: AuthProps) {
                   'Acessar o Sistema'
                 )}
               </Button>
-            </div>
+
+              {!isRegistering && (
+                <div className="flex justify-between mt-2 text-[11px] font-medium">
+                  <button onClick={() => { setModalEmail(email.includes('@') ? email : email + sectiDomain); setModalType('forgot'); }} className="text-secti-primary hover:underline">Esqueci minha senha</button>
+                  <button onClick={() => { setModalEmail(email.includes('@') ? email : email + sectiDomain); setModalType('link'); }} className="text-secti-primary hover:underline">Entrar via link</button>
+                </div>
+              )}
+            </form>
             <footer className="pt-4 border-t border-secti-border flex flex-col items-center gap-3">
               <button
                 onClick={() => setIsRegistering(!isRegistering)}
@@ -244,6 +370,37 @@ export function Login({ onLogin, onRegister }: AuthProps) {
               </button>
             </footer>
           </div>
+
+          {/* modal for forgot/password and email link */}
+          <Dialog open={!!modalType} onOpenChange={(open) => { if (!open) closeModal(); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{modalType === 'forgot' ? 'Recuperar senha' : 'Acesso por link'}</DialogTitle>
+                <DialogDescription>Informe o e‑mail institucional e clique em enviar.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">E-mail</Label>
+                <Input
+                  type="email"
+                  value={modalEmail}
+                  onChange={(e) => setModalEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleModalSubmit();
+                    }
+                  }}
+                />
+              </div>
+              {infoMessage && <p className="text-[10px] text-secti-primary mt-1">{infoMessage}</p>}
+              <DialogFooter>
+                <Button variant="ghost" onClick={closeModal} disabled={modalSubmitting}>Cancelar</Button>
+                <Button onClick={handleModalSubmit} disabled={modalSubmitting || !modalEmail.trim()}>
+                  {modalSubmitting ? 'Enviando...' : 'Enviar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="bg-gray-50 p-4 text-center border-t border-secti-border">
             <p className="text-[9px] text-secti-muted uppercase font-mono leading-none tracking-widest">
