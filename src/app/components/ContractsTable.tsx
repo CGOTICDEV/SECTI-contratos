@@ -11,6 +11,7 @@ import {
 } from './ui/table';
 import { Pencil } from 'lucide-react';
 import { Button } from './ui/button';
+import { exportContractsToExcel } from '../utils/excel';
 
 interface ContractsTableProps {
   contracts: Contract[];
@@ -28,6 +29,15 @@ export function ContractsTable({ contracts, onEdit }: ContractsTableProps) {
 
   return (
     <div className="bg-secti-surface rounded-lg border border-secti-border overflow-hidden shadow-card">
+      <div className="flex justify-end p-4">
+        <Button
+          size="sm"
+          onClick={() => exportContractsToExcel(contracts)}
+          className="h-8"
+        >
+          Exportar Excel
+        </Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-gray-50 border-b border-secti-border">

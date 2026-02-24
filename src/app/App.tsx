@@ -65,8 +65,6 @@ function App() {
 
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  // flag used by the auth state listener to avoid signing the user out while
-  // we're still in the middle of creating their profile document.
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,7 +73,6 @@ function App() {
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
 
-    // handle incoming email link sign-in
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let storedEmail = window.localStorage.getItem('emailForSignIn') || '';
       if (!storedEmail) {
@@ -182,7 +179,6 @@ function App() {
       if (editingContract) {
         const ref = doc(db, 'contracts', editingContract.id);
         const after: Contract = { ...editingContract, ...contractData } as Contract;
-        // compute which fields actually changed
         const changes = computeChanges(editingContract, after);
         if (changes.length > 0) {
           const entry = {
@@ -196,7 +192,6 @@ function App() {
           } as any);
           toast.success('Sincronização concluída: Registro atualizado.');
         } else {
-          // nothing to update
           toast.info('Nenhuma alteração detectada.');
         }
       } else {
@@ -206,7 +201,6 @@ function App() {
           if (userProfile.role === 'gestor') newContract.gestor = nameOrEmail;
           if (userProfile.role === 'fiscal') newContract.fiscal = nameOrEmail;
         }
-        // creation entry: record all initial values as changes
         const changes = computeChanges(null, newContract);
         const createdEntry = {
           timestamp: new Date().toISOString(),
@@ -249,9 +243,6 @@ function App() {
   }
 
   const handleLogin = async (email: string, password: string) => {
-    // guard against invalid inputs coming from callers; the UI usually
-    // performs this check but we add an extra layer to avoid a bad
-    // request reaching Firebase and triggering a 400 invalid-credential
     if (!email || !password) {
       toast.error('Por favor informe e‑mail e senha');
       return;
@@ -259,9 +250,7 @@ function App() {
 
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      // if account is not verified we immediately log out and inform the user
       if (cred.user && !cred.user.emailVerified) {
-        // send another verification link just in case
         await sendEmailVerification(cred.user);
         await signOut(auth);
         toast.error(
@@ -278,7 +267,6 @@ function App() {
   };
 
 
-  // utility to check if an auth record exists for the given email
   const emailExists = async (email: string): Promise<boolean> => {
     try {
       const methods = await fetchSignInMethodsForEmail(auth, email);
@@ -338,7 +326,6 @@ function App() {
     creatingUserRef.current = true;
     try {
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
-      // send verification email immediately
       if (userCred.user) {
         await sendEmailVerification(userCred.user);
       }
@@ -346,7 +333,6 @@ function App() {
         await updateProfile(auth.currentUser, { displayName: username });
       }
       try {
-        // we use the UID as the document ID to satisfy the security rule
         await addUser({
           uid: userCred.user.uid,
           email: userCred.user.email,
@@ -360,7 +346,6 @@ function App() {
       } catch (fireErr) {
         console.error('Erro ao criar usuário no Firestore', fireErr);
       }
-      // log the user out so they cannot bypass verification
       await signOut(auth);
       toast.success(
         `Conta criada como ${
@@ -503,10 +488,10 @@ function App() {
               onSave={handleSaveContract}
               contract={editingContract}
               currentUser={
-                userProfile
+                userProfile && (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
                   ? {
                       email: userProfile.email,
-                      role: userProfile.role as 'gestor' | 'fiscal' | undefined,
+                      role: userProfile.role,
                       displayName: userProfile.displayName,
                     }
                   : undefined

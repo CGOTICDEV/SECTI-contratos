@@ -13,13 +13,11 @@ const firebaseConfig = {
   measurementId: "G-5XZD1HZEC2"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// auth helpers
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -30,7 +28,6 @@ import {
   UserCredential,
 } from 'firebase/auth';
 
-// firestore helpers
 import {
   collection,
   addDoc,
@@ -40,7 +37,6 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 
-// contracts collection reference
 const contractsCollection = collection(db, 'contracts');
 
 export function subscribeContracts(
@@ -61,10 +57,8 @@ export function updateContract(id: string, contract: any) {
   return updateDoc(ref, contract);
 }
 
-// users collection helpers
 const usersCollection = collection(db, 'users');
 export function addUser(user: any) {
-  // use UID as document ID to align with security rules
   if (!user.uid) {
     throw new Error('user.uid is required');
   }
@@ -83,17 +77,14 @@ export function subscribeUser(uid: string, callback: (userData: any | null) => v
   });
 }
 
-// helper to update user document; partial updates allowed
 export function updateUser(uid: string, data: Partial<any>) {
   const ref = doc(db, 'users', uid);
-  // Firestore rejects fields that are explicitly `undefined`, so strip them
   const filtered = Object.fromEntries(
     Object.entries(data).filter(([, value]) => value !== undefined)
   );
   return updateDoc(ref, filtered);
 }
 
-// export auth utilities in case they're needed elsewhere
 export {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,

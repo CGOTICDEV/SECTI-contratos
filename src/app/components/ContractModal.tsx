@@ -89,7 +89,6 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
       <SheetContent className="sm:max-w-xl w-full border-l border-secti-border bg-[#F8FAFC] p-0 flex flex-col">
         <SheetHeader className="p-6 bg-[#0B2046] text-white">
           <SheetTitle className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-[#00D1FF]" />
             {contract ? 'Ajustar Contrato' : 'Novo Registro'}
           </SheetTitle>
           <SheetDescription className="text-[#00D1FF]/70 font-mono text-xs uppercase tracking-widest">

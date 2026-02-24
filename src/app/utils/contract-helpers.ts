@@ -57,8 +57,9 @@ export function getContractStatus(contract: Contract): StatusInfo {
   };
 }
 
-export function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function formatCurrency(value?: number | null): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
+  return `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatDate(dateString: string): string {
@@ -72,11 +73,7 @@ export function formatDate(dateString: string): string {
   }
 }
 
-/**
- * Basic Brazilian phone formatter. Converts a string of digits into
- * the pattern "(DD) NNNN-NNNN" or "(DD) NNNNN-NNNN" depending on length.
- * Any non-digit characters are stripped before formatting.
- */
+
 export function formatPhoneNumber(value?: string): string {
   if (!value) return '';
   const digits = value.replace(/\D/g, '');
@@ -84,13 +81,9 @@ export function formatPhoneNumber(value?: string): string {
   if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   if (digits.length <= 10)
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  // 11 or more: assume mobile with 5-digit prefix
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-}/**
- * Build a minimal list of changed fields by comparing a previous contract state with
- * a new one.  This helps keep the stored history light and focused on what really
- * changed, along with the old value.
- */
+}
+
 export function computeChanges(
   before: Partial<Contract> | null,
   after: Partial<Contract>

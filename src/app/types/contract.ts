@@ -1,13 +1,13 @@
 export interface HistoryChange {
-  field: keyof Contract;      // the name of the property that was modified
-  before: any;                // value prior to change (null when creating)
-  after: any;                 // value after change
+  field: keyof Contract;
+  before: any;
+  after: any;
 }
 
 export interface HistoryEntry {
-  timestamp: string;          // ISO string with the moment the change occurred
-  user?: string;              // optional user/email responsible for the change
-  changes: HistoryChange[];   // list of fields that were modified
+  timestamp: string;
+  user?: string;
+  changes: HistoryChange[];
 }
 
 export interface Contract {
@@ -28,7 +28,7 @@ export interface Contract {
   valorPagoAcumulado: number;
   apostila?: string;
   garantia?: string;
-  history?: HistoryEntry[];   // optional history array of modifications
+  history?: HistoryEntry[];
 }
 
 export type StatusType = 'critical' | 'warning' | 'safe' | 'expired';
