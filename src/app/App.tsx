@@ -57,10 +57,6 @@ import {
   arrayUnion,
 } from 'firebase/firestore';
 
-// values now represent the day thresholds used by the UI.  
-// '<15' corresponds to contratos com menos de 15 dias, '<30' a menos de 30, '<60' a menos de 60
-// and '<90' a menos de 90.  
-// filtering logic is based solely on daysRemaining instead of status.type.
 type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
 
 function App() {
@@ -75,7 +71,6 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | undefined>();
 
-  // when a user clicks on a row we present a read‑only summary/history view
   const [viewingContract, setViewingContract] = useState<Contract | undefined>();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -102,7 +97,6 @@ function App() {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-  
       if (user && !user.emailVerified && !creatingUserRef.current) {
         await signOut(auth);
         setIsAuthenticated(false);
@@ -137,7 +131,6 @@ function App() {
   }, [isAuthenticated]);
 
   const kpis = useMemo(() => {
-    // compute counts based on the current <15 / <30 / <60 / <90 thresholds
     let less15 = 0;
     let less30 = 0;
     let less60 = 0;
@@ -236,11 +229,11 @@ function App() {
         };
         newContract.history = [createdEntry];
         await addDoc(collection(db, 'contracts'), newContract);
-        toast.success('Nova unidade de contrato integrada.');
+        toast.success('Novo registro integrado com sucesso.');
       }
     } catch (err) {
       console.error(err);
-      toast.error('Falha ao salvar no Firebase.');
+      toast.error('Falha ao salvar no banco de dados.');
     }
 
     setEditingContract(undefined);
@@ -248,24 +241,15 @@ function App() {
 
   function translateAuthError(code: string | undefined, defaultMsg: string) {
     switch (code) {
-      case 'auth/invalid-email':
-        return 'Formato de e‑mail inválido.';
-      case 'auth/user-disabled':
-        return 'Conta de usuário desabilitada.';
-      case 'auth/user-not-found':
-        return 'Usuário não encontrado.';
-      case 'auth/wrong-password':
-        return 'Senha incorreta.';
-      case 'auth/email-already-in-use':
-        return 'E‑mail já está em uso.';
-      case 'auth/weak-password':
-        return 'Senha muito fraca (mínimo 6 caracteres).';
-      case 'auth/operation-not-Todosowed':
-        return 'Operação não permitida. Contate o administrador.';
-      case 'auth/too-many-requests':
-        return 'Muitas tentativas. Aguarde alguns minutos.';
-      default:
-        return defaultMsg;
+      case 'auth/invalid-email': return 'Formato de e‑mail inválido.';
+      case 'auth/user-disabled': return 'Conta de usuário desabilitada.';
+      case 'auth/user-not-found': return 'Usuário não encontrado.';
+      case 'auth/wrong-password': return 'Senha incorreta.';
+      case 'auth/email-already-in-use': return 'E‑mail já está em uso.';
+      case 'auth/weak-password': return 'Senha muito fraca (mínimo 6 caracteres).';
+      case 'auth/operation-not-allowed': return 'Operação não permitida. Contate o administrador.';
+      case 'auth/too-many-requests': return 'Muitas tentativas. Aguarde alguns minutos.';
+      default: return defaultMsg;
     }
   }
 
@@ -274,15 +258,12 @@ function App() {
       toast.error('Por favor informe e‑mail e senha');
       return;
     }
-
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       if (cred.user && !cred.user.emailVerified) {
         await sendEmailVerification(cred.user);
         await signOut(auth);
-        toast.error(
-          'Sua conta ainda não foi verificada. Enviamos um e‑mail com instruções, confira sua caixa de entrada.'
-        );
+        toast.error('Sua conta ainda não foi verificada. Enviamos um e‑mail com instruções, confira sua caixa de entrada.');
         return;
       }
       toast.success('Autenticado com sucesso.');
@@ -292,7 +273,6 @@ function App() {
       toast.error(msg);
     }
   };
-
 
   const emailExists = async (email: string): Promise<boolean> => {
     try {
@@ -375,9 +355,7 @@ function App() {
       }
       await signOut(auth);
       toast.success(
-        `Conta criada como ${
-          role === 'gestor' ? 'Gestor' : 'Fiscal'
-        }. Verifique seu e‑mail para ativar a conta.`
+        `Conta criada como ${role === 'gestor' ? 'Gestor' : 'Fiscal'}. Verifique seu e‑mail para ativar a conta.`
       );
     } catch (err: any) {
       console.error(err);
@@ -393,12 +371,15 @@ function App() {
       await signOut(auth);
       setCurrentPage('dashboard');
       setUserProfile(null);
-      toast.success('Desconectado.');
+      toast.success('Desconectado com sucesso.');
     } catch (err) {
       console.error(err);
       toast.error('Erro ao sair.');
     }
   };
+
+  // Helper para nome no Header
+  const firstName = userProfile?.displayName?.split(' ')[0] || 'Usuário';
 
   return (
     <>
@@ -413,72 +394,111 @@ function App() {
       ) : (
         <SidebarProvider>
           <div className="flex min-h-screen w-full bg-[#F8FAFC]">
-            <Sidebar className="bg-[#0B2046] border-r border-secti-border">
+            
+            {/* SIDEBAR */}
+            <Sidebar className="bg-[#0B2046] border-r border-secti-border shadow-lg">
               <SidebarContent className="bg-[#0B2046] text-white">
                 <div className="p-6">
-                  <h2 className="text-2xl font-bold tracking-tighter text-[#00D1FF]">SECTI - CONTRATOS</h2>
-                  <p className="text-[10px] font-mono opacity-50 uppercase tracking-widest">Administrativo</p>
+                  <h2 className="text-2xl font-extrabold tracking-tight text-[#00D1FF]">SECTI</h2>
+                  <p className="text-[11px] font-mono text-white/60 uppercase tracking-[0.2em] mt-1">
+                    Contratos & Convênios
+                  </p>
                 </div>
-                <SidebarGroup>
-                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-6">Ferramentas</SidebarGroupLabel>
+                
+                <SidebarGroup className="mt-4">
+                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-6 mb-2">
+                    Navegação Principal
+                  </SidebarGroupLabel>
                   <SidebarGroupContent>
-                    <SidebarMenu>
+                    <SidebarMenu className="space-y-1">
+                      
+                      {/* Item: Dashboard */}
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => setCurrentPage('dashboard')}
-                          className="px-6 h-12 hover:bg-[#0056B3] transition-colors text-white gap-3"
+                          className={`px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
+                            currentPage === 'dashboard' 
+                              ? 'bg-[#0056B3]/40 border-[#00D1FF] font-semibold' 
+                              : 'border-transparent hover:bg-white/5 font-medium'
+                          }`}
                         >
-                          <LayoutDashboard className="w-5 h-5 text-[#00D1FF]" />
-                          <span className="font-medium">Dashboard Geral</span>
+                          <LayoutDashboard className={`w-5 h-5 ${currentPage === 'dashboard' ? 'text-[#00D1FF]' : 'text-white/70'}`} />
+                          <span>Painel Geral</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
+
+                      {/* Item: Novo Registro */}
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => { setEditingContract(undefined); setIsModalOpen(true); }}
-                          className="px-6 h-12 hover:bg-[#0056B3] transition-colors text-white gap-3"
+                          className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
                         >
-                          <Plus className="w-5 h-5 text-[#00D1FF]" />
-                          <span className="font-medium">Novo Registro</span>
+                          <Plus className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
+                          <span>Novo Registro</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
+
+                      {/* Item: Perfil */}
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => setCurrentPage('profile')}
-                          className="px-6 h-12 hover:bg-[#0056B3] transition-colors text-white gap-3"
+                          className={`px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
+                            currentPage === 'profile' 
+                              ? 'bg-[#0056B3]/40 border-[#00D1FF] font-semibold' 
+                              : 'border-transparent hover:bg-white/5 font-medium'
+                          }`}
                         >
-                          <User className="w-5 h-5 text-[#00D1FF]" />
-                          <span className="font-medium">Meu Perfil</span>
+                          <User className={`w-5 h-5 ${currentPage === 'profile' ? 'text-[#00D1FF]' : 'text-white/70'}`} />
+                          <span>Meu Perfil</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>
-                <div className="mt-auto p-4">
+
+                <div className="mt-auto p-4 border-t border-white/10">
                   <Button
                     variant="ghost"
                     onClick={handleLogout}
-                    className="w-full justify-start text-white/70 hover:text-white hover:bg-red-500/20 gap-3"
+                    className="w-full justify-start text-white/70 hover:text-white hover:bg-red-500/20 gap-3 rounded-md"
                   >
-                    <LogOut className="w-5 h-5" />
+                    <LogOut className="w-4 h-4" />
                     Sair do Sistema
                   </Button>
                 </div>
               </SidebarContent>
             </Sidebar>
 
-            <main className="flex-1 overflow-y-auto">
+            {/* MAIN CONTENT */}
+            <main className="flex-1 overflow-y-auto flex flex-col w-full relative">
               {currentPage === 'profile' ? (
-                <ProfilePage profile={userProfile} />
+                <div className="animate-in fade-in duration-300 h-full">
+                  <ProfilePage profile={userProfile} />
+                </div>
               ) : (
-                <>
-                  <header className="bg-white border-b border-secti-border h-20 flex items-center px-8 sticky top-0 z-10 shadow-sm">
-                    <div className="flex flex-col">
-                      <h1 className="text-2xl font-bold text-secti-primary font-sans">Monitoramento de Contratos</h1>
+                <div className="flex flex-col min-h-full animate-in fade-in duration-300">
+                  
+                  {/* HEADER */}
+                  <header className="bg-white border-b border-secti-border h-[72px] flex items-center justify-between px-6 lg:px-8 sticky top-0 z-10 shadow-sm shrink-0">
+                    <div>
+                      <h1 className="text-xl font-bold text-[#0B2046] tracking-tight">Monitoramento de Prazos</h1>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Gestão unificada de contratos e convênios</p>
                     </div>
+                    {userProfile && (
+                      <div className="hidden sm:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                        <span className="text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
+                        <div className="w-7 h-7 bg-[#00D1FF]/20 rounded-full flex items-center justify-center text-[#0B2046] text-xs font-bold">
+                          {firstName.charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                    )}
                   </header>
 
-                  <div className="p-8 max-w-[1600px] mx-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                  {/* DASHBOARD BODY */}
+                  <div className="p-6 lg:p-8 max-w-[1600px] w-full mx-auto flex-1">
+                    
+                    {/* KPIS GRID - Corrigido para acomodar 5 itens perfeitamente */}
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                       <KpiCard
                         title="Ativos Totais"
                         value={kpis.total}
@@ -488,7 +508,7 @@ function App() {
                         onClick={() => setActiveFilter('Todos')}
                       />
                       <KpiCard
-                        title="STATUS < 15 DIAS"
+                        title="Vence em < 15 Dias"
                         value={kpis.less15}
                         icon={AlertTriangle}
                         variant="critical"
@@ -496,7 +516,7 @@ function App() {
                         onClick={() => setActiveFilter('<15')}
                       />
                       <KpiCard
-                        title="STATUS < 30 DIAS"
+                        title="Vence em < 30 Dias"
                         value={kpis.less30}
                         icon={Clock}
                         variant="warning"
@@ -504,7 +524,7 @@ function App() {
                         onClick={() => setActiveFilter('<30')}
                       />
                       <KpiCard
-                        title="STATUS < 60 DIAS"
+                        title="Vence em < 60 Dias"
                         value={kpis.less60}
                         icon={CheckCircle2}
                         variant="safe"
@@ -512,7 +532,7 @@ function App() {
                         onClick={() => setActiveFilter('<60')}
                       />
                       <KpiCard
-                        title="STATUS < 90 DIAS"
+                        title="Vence em < 90 Dias"
                         value={kpis.less90}
                         icon={CheckCircle2}
                         variant="safe"
@@ -521,36 +541,45 @@ function App() {
                       />
                     </div>
 
-                    <div className="bg-white p-6 rounded-lg border border-secti-border shadow-card mb-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="relative w-full max-w-xl">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secti-muted" />
-                          <Input
-                            placeholder="Varredura por empresa, contrato, convênio ou gestor..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 border-secti-border font-sans bg-[#F8FAFC]"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-secti-muted uppercase font-mono">Filtro Ativo:</span>
-                          <span className="px-3 py-1 bg-secti-primary/10 text-secti-primary rounded text-xs font-bold font-mono">
-                            {activeFilter === 'Todos' ? 'TODOS' : activeFilter.replace('<', '< ').toUpperCase()}
-                          </span>
-                        </div>
+                    {/* SEARCH / FILTER PANEL */}
+                    <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="relative w-full max-w-xl">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          placeholder="Pesquisar por empresa, contrato, convênio ou responsável..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 h-11 border-gray-200 bg-gray-50 focus:bg-white focus:ring-1 focus:ring-[#00D1FF] transition-colors rounded-md text-sm"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border border-gray-100 shrink-0">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Filtro Ativo:</span>
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                          activeFilter === 'Todos' ? 'bg-[#0B2046] text-white' : 
+                          activeFilter === '<15' ? 'bg-red-100 text-red-700' :
+                          activeFilter === '<30' ? 'bg-orange-100 text-orange-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {activeFilter === 'Todos' ? 'TODOS' : activeFilter.replace('<', '< ')}
+                        </span>
                       </div>
                     </div>
 
-                    <ContractsTable
-                      contracts={filteredContracts}
-                      onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }}
-                      onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
-                    />
+                    {/* TABLE AREA */}
+                    <div className="bg-white rounded-lg border border-secti-border shadow-sm overflow-hidden">
+                      <ContractsTable
+                        contracts={filteredContracts}
+                        onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }}
+                        onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
+                      />
+                    </div>
                   </div>
-                </>
+                </div>
               )}
             </main>
 
+            {/* MODALS */}
             <ContractModal
               isOpen={isModalOpen}
               onClose={() => { setIsModalOpen(false); setEditingContract(undefined); }}
@@ -564,7 +593,8 @@ function App() {
                       displayName: userProfile.displayName,
                     }
                   : undefined
-              } />
+              } 
+            />
 
             {viewingContract && (
               <ContractDetailsModal

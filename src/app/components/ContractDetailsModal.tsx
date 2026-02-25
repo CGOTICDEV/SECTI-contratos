@@ -1,9 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { formatDate, formatCurrency } from '../utils/contract-helpers';
 import { Contract, HistoryEntry, HistoryChange } from '../types/contract';
+import { 
+  FileSearch, 
+  Info, 
+  History, 
+  User, 
+  Clock, 
+  Calendar, 
+  DollarSign, 
+  ArrowRight,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
@@ -12,138 +24,268 @@ interface ContractDetailsModalProps {
 }
 
 export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDetailsModalProps) {
+  // Estado para controlar quais itens do histórico estão expandidos (guarda os índices)
+  const [expandedEntries, setExpandedEntries] = useState<number[]>([]);
+
+  const toggleEntry = (idx: number) => {
+    setExpandedEntries((prev) =>
+      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+    );
+  };
+
   const renderHistory = () => {
     if (!contract.history || contract.history.length === 0) {
-      return <p className="text-sm text-secti-muted">Sem histórico disponível.</p>;
+      return (
+        <div className="flex flex-col items-center justify-center p-8 text-center bg-white rounded-lg border border-dashed border-gray-300">
+          <History className="w-8 h-8 text-gray-300 mb-2" />
+          <p className="text-sm text-secti-muted font-medium">Sem histórico de alterações disponível.</p>
+        </div>
+      );
     }
 
     return (
-      <div className="space-y-6">
+      <div className="relative border-l-2 border-gray-200 ml-3 pl-5 space-y-6 py-2">
         {contract.history
           .slice()
           .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
-          .map((entry: HistoryEntry, idx: number) => (
-            <div key={idx} className="p-4 border rounded-md bg-white shadow-sm">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-mono text-secti-muted">
-                  {formatDate(entry.timestamp)} {new Date(entry.timestamp).toLocaleTimeString('pt-BR')}
-                </span>
-                {entry.user && <span className="text-xs text-secti-muted">{entry.user}</span>}
+          .map((entry: HistoryEntry, idx: number) => {
+            const isExpanded = expandedEntries.includes(idx);
+
+            return (
+              <div key={idx} className="relative">
+                {/* Timeline Dot */}
+                <div className="absolute -left-[29px] top-4 w-4 h-4 bg-white border-2 border-[#0B2046] rounded-full" />
+                
+                <div className="border border-gray-200 rounded-lg bg-white shadow-sm hover:shadow-md transition-all overflow-hidden">
+                  
+                  {/* Cabeçalho Clicável (Resumo) */}
+                  <button
+                    type="button"
+                    onClick={() => toggleEntry(idx)}
+                    className="w-full flex flex-wrap justify-between items-center p-4 hover:bg-gray-50 transition-colors text-left gap-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <div className="flex items-center gap-2 text-xs text-secti-muted font-mono bg-gray-100 px-2 py-1 rounded">
+                        <Clock className="w-3.5 h-3.5" />
+                        {formatDate(entry.timestamp)} às {new Date(entry.timestamp).toLocaleTimeString('pt-BR')}
+                      </div>
+                      {entry.user && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                          <User className="w-3.5 h-3.5 text-gray-400" />
+                          {entry.user}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">
+                        {entry.changes.length} alteraç{entry.changes.length === 1 ? 'ão' : 'ões'}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Conteúdo Expandido (Detalhes) */}
+                  {isExpanded && (
+                    <div className="p-4 pt-0 border-t border-gray-100 bg-gray-50/50 animate-in slide-in-from-top-2 duration-200">
+                      <ul className="space-y-2 mt-4">
+                        {entry.changes.map((chg: HistoryChange, ci: number) => (
+                          <li key={ci} className="text-sm flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2.5 rounded border border-gray-200 shadow-sm">
+                            <strong className="capitalize text-gray-700 min-w-[140px] flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                              {chg.field}:
+                            </strong>
+                            <div className="flex items-center gap-3 text-gray-600 flex-1 overflow-hidden">
+                              <span 
+                                className="truncate line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded" 
+                                title={String(chg.before) || 'Vazio'}
+                              >
+                                {String(chg.before) || 'Vazio'}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                              <span 
+                                className="truncate font-medium text-green-700 bg-green-50 px-1.5 rounded" 
+                                title={String(chg.after)}
+                              >
+                                {String(chg.after)}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                </div>
               </div>
-              <ul className="list-disc list-inside text-sm space-y-1">
-                {entry.changes.map((chg: HistoryChange, ci: number) => (
-                  <li key={ci}>
-                    <strong className="capitalize">{chg.field}</strong>: {String(chg.before) || '-'} &rarr; {String(chg.after)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
       </div>
     );
   };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className="sm:max-w-xl w-full border-l border-secti-border bg-[#F8FAFC] p-0 flex flex-col">
-        <SheetHeader className="p-6 bg-[#0B2046] text-white">
-          <SheetTitle className="text-2xl font-bold tracking-tight text-white">
+      <SheetContent className="sm:max-w-xl w-full border-l border-secti-border bg-[#F8FAFC] p-0 flex flex-col shadow-2xl">
+        
+        {/* HEADER */}
+        <SheetHeader className="p-6 bg-[#0B2046] text-white shadow-md z-10">
+          <SheetTitle className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+            <FileSearch className="w-6 h-6 text-[#00D1FF]" />
             Detalhes do {contract.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato'}
           </SheetTitle>
-          <SheetDescription className="text-[#00D1FF]/70 font-mono text-xs uppercase tracking-widest">
+          <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
             ID: {contract.id}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <Tabs defaultValue="resumo" className="w-full">
-            <TabsList className="w-full justify-start rounded-none border-b border-secti-border bg-white h-12 px-6">
-              <TabsTrigger value="resumo" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-secti-primary">
-                Resumo
+        {/* BODY */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <Tabs defaultValue="resumo" className="w-full flex flex-col min-h-full">
+            <TabsList className="w-full justify-start rounded-none border-b border-secti-border bg-white h-14 px-6 sticky top-0 z-10 shadow-sm">
+              <TabsTrigger value="resumo" className="gap-2 text-sm data-[state=active]:text-secti-primary data-[state=active]:border-b-2 data-[state=active]:border-secti-primary pb-3 pt-4">
+                <Info className="w-4 h-4" /> Resumo
               </TabsTrigger>
-              <TabsTrigger value="historico" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-secti-primary">
-                Histórico
+              <TabsTrigger value="historico" className="gap-2 text-sm data-[state=active]:text-secti-primary data-[state=active]:border-b-2 data-[state=active]:border-secti-primary pb-3 pt-4">
+                <History className="w-4 h-4" /> Histórico
               </TabsTrigger>
             </TabsList>
 
-            <div className="p-6 space-y-6">
-              <TabsContent value="resumo" className="space-y-4 m-0">
-                <div className="space-y-2">
-                  <span className="text-xs font-bold uppercase text-secti-muted">Número</span>
-                  <p className="font-mono">{contract.numeroContrato}</p>
-                </div>
-                <div className="space-y-2">
-                  <span className="text-xs font-bold uppercase text-secti-muted">Empresa / Convênente</span>
-                  <p>{contract.empresa || contract.convenente}</p>
-                </div>
-                <div className="space-y-2">
-                  <span className="text-xs font-bold uppercase text-secti-muted">Objeto</span>
-                  <p>{contract.objeto}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Gestor</span>
-                    <p>{contract.gestor}</p>
+            <div className="p-6">
+              
+              {/* ABA RESUMO */}
+              <TabsContent value="resumo" className="space-y-6 m-0 animate-in fade-in duration-300">
+                
+                {/* Bloco: Identificação */}
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-gray-400" /> Identificação
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Número</span>
+                      <p className="font-mono text-sm text-gray-900 font-medium bg-gray-50 px-3 py-1.5 rounded border border-gray-100">
+                        {contract.numeroContrato || 'Não informado'}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">
+                        {contract.tipoRegistro === 'convenio' ? 'Convenente' : 'Empresa Contratada'}
+                      </span>
+                      <p className="text-sm text-gray-900 font-medium px-1">
+                        {contract.empresa || contract.convenente || 'Não informado'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Fiscal</span>
-                    <p>{contract.fiscal}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Início</span>
-                    <p>{formatDate(contract.vigenciaInicial)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Fim</span>
-                    <p>{formatDate(contract.vigenciaAtual)}</p>
-                  </div>
-                </div>
-                {contract.ultimoTermoAditivo && (
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Último Termo Aditivo</span>
-                    <p className="whitespace-pre-line text-sm">{contract.ultimoTermoAditivo}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Valor Inicial</span>
-                    <p>{formatCurrency(contract.valorInicial)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Pago em 2025</span>
-                    <p>{formatCurrency(contract.valorPagoAno)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Pago Acumulado</span>
-                    <p>{formatCurrency(contract.valorPagoAcumulado)}</p>
+                  <div className="space-y-1 pt-2">
+                    <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Objeto</span>
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md border border-gray-100 leading-relaxed">
+                      {contract.objeto || 'Sem descrição.'}
+                    </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Valor Atual</span>
-                    <p>{formatCurrency(contract.valorAtual)}</p>
+
+                {/* Bloco: Prazos e Responsáveis */}
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-400" /> Prazos e Responsáveis
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Gestor</span>
+                      <p className="text-sm text-gray-800">{contract.gestor || '-'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Fiscal</span>
+                      <p className="text-sm text-gray-800">{contract.fiscal || '-'}</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase text-secti-muted">Saldo Disponível</span>
-                    <p>{formatCurrency(contract.saldoDisponivel)}</p>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Início</span>
+                      <p className="text-sm font-mono text-gray-800">{formatDate(contract.vigenciaInicial)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Fim (Vigência Atual)</span>
+                      <p className="text-sm font-mono text-gray-800">{formatDate(contract.vigenciaAtual)}</p>
+                    </div>
+                  </div>
+
+                  {contract.ultimoTermoAditivo && (
+                    <div className="space-y-1 pt-2 border-t border-gray-50">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Último Termo Aditivo</span>
+                      <p className="whitespace-pre-line text-sm text-gray-600 bg-orange-50/50 p-3 rounded border border-orange-100">
+                        {contract.ultimoTermoAditivo}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bloco: Financeiro */}
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-gray-400" /> Resumo Financeiro
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor Inicial</span>
+                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorInicial)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Pago em 2025</span>
+                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorPagoAno)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Pago Acumulado</span>
+                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorPagoAcumulado)}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor Atual do Contrato</span>
+                      <p className="font-mono text-base font-semibold text-gray-900">{formatCurrency(contract.valorAtual)}</p>
+                    </div>
+                    <div className="space-y-1 bg-green-50 p-3 rounded-md border border-green-200">
+                      <span className="text-[11px] font-bold uppercase text-green-800 tracking-wider">Saldo Disponível</span>
+                      <p className="font-mono text-lg font-bold text-green-700">{formatCurrency(contract.saldoDisponivel)}</p>
+                    </div>
                   </div>
                 </div>
+
               </TabsContent>
 
-              <TabsContent value="historico" className="space-y-4 m-0">
-                {renderHistory()}
+              {/* ABA HISTÓRICO */}
+              <TabsContent value="historico" className="m-0 animate-in fade-in duration-300">
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-4 mb-4">Registro de Modificações</h3>
+                  {renderHistory()}
+                </div>
               </TabsContent>
+              
             </div>
           </Tabs>
         </div>
 
-        <SheetFooter className="p-6 bg-white border-t border-secti-border mt-auto">
-          <Button variant="outline" onClick={onClose} className="flex-1 border-secti-border text-secti-muted uppercase text-xs font-bold">
-            Fechar
+        {/* FOOTER */}
+        <SheetFooter className="p-6 bg-white border-t border-secti-border mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+          <Button 
+            variant="outline" 
+            onClick={onClose} 
+            className="w-full border-gray-300 text-gray-700 uppercase text-xs font-bold hover:bg-gray-50 h-11 transition-colors"
+          >
+            Fechar Detalhes
           </Button>
         </SheetFooter>
+
       </SheetContent>
     </Sheet>
   );
