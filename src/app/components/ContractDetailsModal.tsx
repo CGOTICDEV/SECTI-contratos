@@ -106,6 +106,20 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     <p className="whitespace-pre-line text-sm">{contract.ultimoTermoAditivo}</p>
                   </div>
                 )}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase text-secti-muted">Valor Inicial</span>
+                    <p>{formatCurrency(contract.valorInicial)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase text-secti-muted">Pago em 2025</span>
+                    <p>{formatCurrency(contract.valorPagoAno)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase text-secti-muted">Pago Acumulado</span>
+                    <p>{formatCurrency(contract.valorPagoAcumulado)}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <span className="text-xs font-bold uppercase text-secti-muted">Valor Atual</span>
