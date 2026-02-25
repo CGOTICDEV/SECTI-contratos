@@ -25,7 +25,9 @@ export function getContractStatus(contract: Contract): StatusInfo {
     };
   }
 
-  if (daysRemaining <= 30) {
+  // thresholds have been updated to reflect the new requirements: critical < 15 days, warning < 30 days
+  // safe threshold is considered < 60 days, although anything above 60 is still treated as safe.
+  if (daysRemaining <= 15) {
     return {
       type: 'critical',
       daysRemaining,
@@ -36,7 +38,7 @@ export function getContractStatus(contract: Contract): StatusInfo {
     };
   }
 
-  if (daysRemaining <= 90) {
+  if (daysRemaining <= 30) {
     return {
       type: 'warning',
       daysRemaining,
@@ -44,6 +46,17 @@ export function getContractStatus(contract: Contract): StatusInfo {
       bgColor: 'bg-yellow-50',
       textColor: 'text-yellow-700',
       borderColor: 'border-yellow-200',
+    };
+  }
+
+  if (daysRemaining <= 60) {
+    return {
+      type: 'safe',
+      daysRemaining,
+      label: `Faltam ${daysRemaining} dias`,
+      bgColor: 'bg-green-50',
+      textColor: 'text-green-700',
+      borderColor: 'border-green-200',
     };
   }
 

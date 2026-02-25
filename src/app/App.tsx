@@ -13,6 +13,7 @@ import {
 import { KpiCard } from './components/KpiCard';
 import { ContractsTable } from './components/ContractsTable';
 import { ContractModal } from './components/ContractModal';
+import { ContractDetailsModal } from './components/ContractDetailsModal';
 import { Login } from './components/Login';
 import { ProfilePage } from './components/ProfilePage';
 import { Button } from './components/ui/button';
@@ -56,7 +57,11 @@ import {
   arrayUnion,
 } from 'firebase/firestore';
 
-type FilterType = 'all' | 'critical' | 'warning' | 'safe';
+// values now represent the day thresholds used by the UI.  
+// '<15' corresponds to contratos com menos de 15 dias, '<30' a menos de 30, '<60' a menos de 60
+// and '<90' a menos de 90.  
+// filtering logic is based solely on daysRemaining instead of status.type.
+type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -66,9 +71,13 @@ function App() {
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | undefined>();
+
+  // when a user clicks on a row we present a read‑only summary/history view
+  const [viewingContract, setViewingContract] = useState<Contract | undefined>();
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
@@ -128,34 +137,48 @@ function App() {
   }, [isAuthenticated]);
 
   const kpis = useMemo(() => {
-    const critical = contracts.filter((c) => {
-      const status = getContractStatus(c);
-      return status.type === 'critical' || status.type === 'expired';
-    }).length;
+    // compute counts based on the current <15 / <30 / <60 / <90 thresholds
+    let less15 = 0;
+    let less30 = 0;
+    let less60 = 0;
+    let less90 = 0;
 
-    const warning = contracts.filter((c) => {
+    for (const c of contracts) {
       const status = getContractStatus(c);
-      return status.type === 'warning';
-    }).length;
+      const days = status.daysRemaining;
+      if (days < 15 || status.type === 'expired') {
+        less15++;
+      } else if (days < 30) {
+        less30++;
+      } else if (days < 60) {
+        less60++;
+      } else if (days < 90) {
+        less90++;
+      }
+    }
 
-    const safe = contracts.filter((c) => {
-      const status = getContractStatus(c);
-      return status.type === 'safe';
-    }).length;
-
-    return { total: contracts.length, critical, warning, safe };
+    return { total: contracts.length, less15, less30, less60, less90 };
   }, [contracts]);
 
   const filteredContracts = useMemo(() => {
     let filtered = contracts;
 
-    if (activeFilter !== 'all') {
+    if (activeFilter !== 'Todos') {
       filtered = filtered.filter((contract) => {
         const status = getContractStatus(contract);
-        if (activeFilter === 'critical') {
-          return status.type === 'critical' || status.type === 'expired';
+        const days = status.daysRemaining;
+        switch (activeFilter) {
+          case '<15':
+            return days < 15 || status.type === 'expired';
+          case '<30':
+            return days < 30 && days >= 15;
+          case '<60':
+            return days < 60 && days >= 30;
+          case '<90':
+            return days < 90 && days >= 60;
+          default:
+            return true;
         }
-        return status.type === activeFilter;
       });
     }
 
@@ -167,7 +190,11 @@ function App() {
           contract.numeroContrato.toLowerCase().includes(query) ||
           contract.objeto.toLowerCase().includes(query) ||
           contract.gestor.toLowerCase().includes(query) ||
-          contract.fiscal.toLowerCase().includes(query)
+          contract.fiscal.toLowerCase().includes(query) ||
+          (contract.convenente ? contract.convenente.toLowerCase().includes(query) : false) ||
+          (contract.numeroConvenio ? contract.numeroConvenio.toLowerCase().includes(query) : false) ||
+          (contract.numeroAcordoCooperacaoTecnica ? contract.numeroAcordoCooperacaoTecnica.toLowerCase().includes(query) : false) ||
+          (contract.numeroTermoCooperacaoTecnica ? contract.numeroTermoCooperacaoTecnica.toLowerCase().includes(query) : false)
       );
     }
 
@@ -233,7 +260,7 @@ function App() {
         return 'E‑mail já está em uso.';
       case 'auth/weak-password':
         return 'Senha muito fraca (mínimo 6 caracteres).';
-      case 'auth/operation-not-allowed':
+      case 'auth/operation-not-Todosowed':
         return 'Operação não permitida. Contate o administrador.';
       case 'auth/too-many-requests':
         return 'Muitas tentativas. Aguarde alguns minutos.';
@@ -452,10 +479,46 @@ function App() {
 
                   <div className="p-8 max-w-[1600px] mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                      <KpiCard title="Ativos Totais" value={kpis.total} icon={FileText} variant="neutral" isActive={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
-                      <KpiCard title="STATUS + 30 DIAS" value={kpis.critical} icon={AlertTriangle} variant="critical" isActive={activeFilter === 'critical'} onClick={() => setActiveFilter('critical')} />
-                      <KpiCard title="STATUS + 60 DIAS" value={kpis.warning} icon={Clock} variant="warning" isActive={activeFilter === 'warning'} onClick={() => setActiveFilter('warning')} />
-                      <KpiCard title="STATUS + 90 DIAS" value={kpis.safe} icon={CheckCircle2} variant="safe" isActive={activeFilter === 'safe'} onClick={() => setActiveFilter('safe')} />
+                      <KpiCard
+                        title="Ativos Totais"
+                        value={kpis.total}
+                        icon={FileText}
+                        variant="neutral"
+                        isActive={activeFilter === 'Todos'}
+                        onClick={() => setActiveFilter('Todos')}
+                      />
+                      <KpiCard
+                        title="STATUS < 15 DIAS"
+                        value={kpis.less15}
+                        icon={AlertTriangle}
+                        variant="critical"
+                        isActive={activeFilter === '<15'}
+                        onClick={() => setActiveFilter('<15')}
+                      />
+                      <KpiCard
+                        title="STATUS < 30 DIAS"
+                        value={kpis.less30}
+                        icon={Clock}
+                        variant="warning"
+                        isActive={activeFilter === '<30'}
+                        onClick={() => setActiveFilter('<30')}
+                      />
+                      <KpiCard
+                        title="STATUS < 60 DIAS"
+                        value={kpis.less60}
+                        icon={CheckCircle2}
+                        variant="safe"
+                        isActive={activeFilter === '<60'}
+                        onClick={() => setActiveFilter('<60')}
+                      />
+                      <KpiCard
+                        title="STATUS < 90 DIAS"
+                        value={kpis.less90}
+                        icon={CheckCircle2}
+                        variant="safe"
+                        isActive={activeFilter === '<90'}
+                        onClick={() => setActiveFilter('<90')}
+                      />
                     </div>
 
                     <div className="bg-white p-6 rounded-lg border border-secti-border shadow-card mb-6">
@@ -463,7 +526,7 @@ function App() {
                         <div className="relative w-full max-w-xl">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secti-muted" />
                           <Input
-                            placeholder="Varredura por empresa, contrato ou gestor..."
+                            placeholder="Varredura por empresa, contrato, convênio ou gestor..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-10 border-secti-border font-sans bg-[#F8FAFC]"
@@ -471,12 +534,18 @@ function App() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-bold text-secti-muted uppercase font-mono">Filtro Ativo:</span>
-                          <span className="px-3 py-1 bg-secti-primary/10 text-secti-primary rounded text-xs font-bold font-mono">{activeFilter.toUpperCase()}</span>
+                          <span className="px-3 py-1 bg-secti-primary/10 text-secti-primary rounded text-xs font-bold font-mono">
+                            {activeFilter === 'Todos' ? 'TODOS' : activeFilter.replace('<', '< ').toUpperCase()}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    <ContractsTable contracts={filteredContracts} onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }} />
+                    <ContractsTable
+                      contracts={filteredContracts}
+                      onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }}
+                      onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
+                    />
                   </div>
                 </>
               )}
@@ -496,6 +565,17 @@ function App() {
                     }
                   : undefined
               } />
+
+            {viewingContract && (
+              <ContractDetailsModal
+                isOpen={isDetailsOpen}
+                onClose={() => {
+                  setIsDetailsOpen(false);
+                  setViewingContract(undefined);
+                }}
+                contract={viewingContract}
+              />
+            )}
           </div>
         </SidebarProvider>
       )}

@@ -14,10 +14,8 @@ async function persistWorkbook(
     fileName: string
 ): Promise<void> {
     if (typeof window === 'undefined' || !window.document) {
-        // Node.js / server environment
         await wb.xlsx.writeFile(fileName);
     } else {
-        // browser – generate buffer, create blob and trigger download
         const buf = await wb.xlsx.writeBuffer();
         const blob = new Blob([buf], {
             type: 'application/vnd.openxmlformats‑officedocument.spreadsheetml.sheet',
@@ -41,6 +39,12 @@ export async function exportContractsToExcel(
 
     const cols: ColMeta[] = [
         { key: 'situacao', header: 'Status', type: 's', width: 14 },
+        { key: 'tipoRegistro', header: 'Tipo', type: 's', width: 14 },
+        { key: 'item', header: 'Item', type: 'n', width: 6 },
+        { key: 'numeroAcordoCooperacaoTecnica', header: 'Nº Acordo', type: 's', width: 18 },
+        { key: 'numeroTermoCooperacaoTecnica', header: 'Nº Termo', type: 's', width: 18 },
+        { key: 'numeroConvenio', header: 'Nº Convênio', type: 's', width: 18 },
+        { key: 'convenente', header: 'Convenente', type: 's', width: 30 },
         { key: 'numeroContrato', header: 'Nº Contrato', type: 's', width: 18 },
         { key: 'empresa', header: 'Empresa', type: 's', width: 30 },
         { key: 'objeto', header: 'Objeto', type: 's', width: 40 },
@@ -78,19 +82,18 @@ export async function exportContractsToExcel(
         },
         { key: 'garantia', header: 'Garantia', type: 's', width: 20 },
         { key: 'ultimoTermoAditivo', header: 'Último Termo', type: 's', width: 20 },
+        { key: 'termoAdesao', header: 'Termo de Adesão', type: 's', width: 20 }
     ];
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Contratos');
 
-    // configura colunas (cabeçalho + largura)
     ws.columns = cols.map((c) => ({
         header: c.header,
         key: c.key,
         width: c.width,
     }));
 
-    // estilo do cabeçalho
     ws.getRow(1).eachCell((cell) => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -103,12 +106,16 @@ export async function exportContractsToExcel(
         };
     });
 
-    // adiciona dados
-    contracts.forEach((c) => {
+    contracts.forEach((c, idx) => {
         const rowValues = cols.map((col) => {
+            if (col.key === 'item') {
+                return c.tipoRegistro === 'convenio' ? idx + 1 : '';
+            }
             switch (col.key) {
                 case 'vigenciaAtual':
                     return c.vigenciaAtual ? new Date(c.vigenciaAtual) : '';
+                case 'tipoRegistro':
+                    return c.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato';
                 default:
                     return (c as any)[col.key] ?? '';
             }
@@ -116,7 +123,6 @@ export async function exportContractsToExcel(
         ws.addRow(rowValues);
     });
 
-    // estiliza células de dados (bordas, cor alternada, alinhamento, numFmt)
     ws.eachRow((row, rowNumber) => {
         row.eachCell((cell, colNumber) => {
             const col = cols[colNumber - 1];
@@ -140,7 +146,6 @@ export async function exportContractsToExcel(
         });
     });
 
-    // congela primeira linha e habilita filtro
     ws.views = [{ state: 'frozen', ySplit: 1 }];
     ws.autoFilter = {
         from: { row: 1, column: 1 },
