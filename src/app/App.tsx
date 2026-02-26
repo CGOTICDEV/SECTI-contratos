@@ -219,9 +219,23 @@ function App() {
 
   const handleSaveContract = async (contractData: Partial<Contract>) => {
     try {
+      // ensure editor array is updated with current user email
+      const editorEmail = userProfile?.email?.toLowerCase();
+
       if (editingContract) {
         const ref = doc(db, 'contracts', editingContract.id);
+        // merge incoming values with existing contract
         const after: Contract = { ...editingContract, ...contractData } as Contract;
+
+        // add current user to emailEditor if not already present
+        if (editorEmail) {
+          const list = after.emailEditor ? [...after.emailEditor] : [];
+          if (!list.includes(editorEmail)) {
+            list.push(editorEmail);
+          }
+          after.emailEditor = list;
+        }
+
         const changes = computeChanges(editingContract, after);
         if (changes.length > 0) {
           const entry = {
@@ -232,6 +246,8 @@ function App() {
           };
           await updateDoc(ref, {
             ...contractData,
+            // also store the modified editor list
+            ...(after.emailEditor ? { emailEditor: after.emailEditor } : {}),
             history: arrayUnion(entry),
           } as any);
           toast.success('Sincronização concluída: Registro atualizado.');
@@ -245,6 +261,12 @@ function App() {
           if (userProfile.role === 'gestor') newContract.gestor = nameOrEmail;
           if (userProfile.role === 'fiscal') newContract.fiscal = nameOrEmail;
         }
+
+        // initial editor list should include creator
+        if (editorEmail) {
+          newContract.emailEditor = [editorEmail];
+        }
+
         const changes = computeChanges(null, newContract);
         const createdEntry = {
           timestamp: new Date().toISOString(),

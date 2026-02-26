@@ -42,6 +42,9 @@ export interface Contract {
   apostilas?: Apostila[];
   garantia?: string;
 
+  /** lista de e-mails de quem alterou o contrato em algum momento */
+  emailEditor?: string[];
+
   // campos exclusivos para convênios
   numeroAcordoCooperacaoTecnica?: string;
   numeroTermoCooperacaoTecnica?: string;
