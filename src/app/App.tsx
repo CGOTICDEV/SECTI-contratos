@@ -10,10 +10,13 @@ import {
   LayoutDashboard,
   User,
 } from 'lucide-react';
-import { KpiCard } from './components/KpiCard';
+// KPI cards were replaced by a tabbed filter control
+import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Badge } from './components/ui/badge';
 import { ContractsTable } from './components/ContractsTable';
 import { ContractModal } from './components/ContractModal';
 import { ContractDetailsModal } from './components/ContractDetailsModal';
+import { ApostilaModal } from './components/ApostilaModal';
 import { Login } from './components/Login';
 import { ProfilePage } from './components/ProfilePage';
 import { Button } from './components/ui/button';
@@ -68,11 +71,16 @@ function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
+  // the tabs component uses string values matching the FilterType union
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | undefined>();
 
   const [viewingContract, setViewingContract] = useState<Contract | undefined>();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // apostila modal state (only for CCC users)
+  const [apostilaContract, setApostilaContract] = useState<Contract | null>(null);
+  const [isApostilaOpen, setIsApostilaOpen] = useState(false);
 
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
@@ -121,10 +129,19 @@ function App() {
     if (!isAuthenticated) return;
     const q = collection(db, 'contracts');
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Contract[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      }));
+      const data: Contract[] = snapshot.docs.map((d) => {
+        const raw: any = { id: d.id, ...(d.data() as any) };
+        // migrate legacy single-string apostila into new array structure
+        if (raw.apostila && !raw.apostilas) {
+          raw.apostilas = [
+            {
+              timestamp: '',
+              note: raw.apostila,
+            },
+          ];
+        }
+        return raw as Contract;
+      });
       setContracts(data);
     });
     return unsubscribe;
@@ -187,7 +204,8 @@ function App() {
           (contract.convenente ? contract.convenente.toLowerCase().includes(query) : false) ||
           (contract.numeroConvenio ? contract.numeroConvenio.toLowerCase().includes(query) : false) ||
           (contract.numeroAcordoCooperacaoTecnica ? contract.numeroAcordoCooperacaoTecnica.toLowerCase().includes(query) : false) ||
-          (contract.numeroTermoCooperacaoTecnica ? contract.numeroTermoCooperacaoTecnica.toLowerCase().includes(query) : false)
+          (contract.numeroTermoCooperacaoTecnica ? contract.numeroTermoCooperacaoTecnica.toLowerCase().includes(query) : false) ||
+          (contract.apostilas ? contract.apostilas.some(a => a.note.toLowerCase().includes(query)) : false)
       );
     }
 
@@ -203,7 +221,8 @@ function App() {
         if (changes.length > 0) {
           const entry = {
             timestamp: new Date().toISOString(),
-            user: userProfile?.email || userProfile?.uid || null,
+            user: userProfile?.email || userProfile?.uid || undefined,
+            userPhoto: userProfile?.photoBase64,
             changes,
           };
           await updateDoc(ref, {
@@ -224,7 +243,8 @@ function App() {
         const changes = computeChanges(null, newContract);
         const createdEntry = {
           timestamp: new Date().toISOString(),
-          user: userProfile?.email || userProfile?.uid || null,
+          user: userProfile?.email || userProfile?.uid || undefined,
+          userPhoto: userProfile?.photoBase64,
           changes,
         };
         newContract.history = [createdEntry];
@@ -237,6 +257,46 @@ function App() {
     }
 
     setEditingContract(undefined);
+  };
+
+
+  const handleAddApostilaClick = (c: Contract) => {
+    setApostilaContract(c);
+    setIsApostilaOpen(true);
+  };
+
+  const handleSaveApostila = async (id: string, note: string) => {
+    try {
+      if (!apostilaContract) return;
+      const ref = doc(db, 'contracts', id);
+      const current = apostilaContract;
+      const newEntry = {
+        timestamp: new Date().toISOString(),
+        user: userProfile?.email || userProfile?.uid || undefined,
+        userPhoto: userProfile?.photoBase64,
+        note,
+      };
+      const updated: Contract = {
+        ...current,
+        apostilas: [...(current.apostilas || []), newEntry],
+      };
+      const changes = computeChanges(current, updated);
+      const historyEntry = {
+        timestamp: new Date().toISOString(),
+        user: userProfile?.email || userProfile?.uid || null,
+        changes,
+      };
+      await updateDoc(ref, {
+        apostilas: updated.apostilas,
+        history: arrayUnion(historyEntry),
+      } as any);
+      toast.success('Apostila registrada com sucesso.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao salvar apostila.');
+    } finally {
+      setApostilaContract(null);
+    }
   };
 
   function translateAuthError(code: string | undefined, defaultMsg: string) {
@@ -325,7 +385,7 @@ function App() {
     username: string,
     email: string,
     password: string,
-    role: 'gestor' | 'fiscal',
+    role: 'gestor' | 'fiscal' | 'ccc',
     photoBase64: string,
     phone?: string,
     department?: string
@@ -427,16 +487,18 @@ function App() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
 
-                      {/* Item: Novo Registro */}
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          onClick={() => { setEditingContract(undefined); setIsModalOpen(true); }}
-                          className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
-                        >
-                          <Plus className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
-                          <span>Novo Registro</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      {/* Item: Novo Registro (somente gestor/fiscal) */}
+                      {(userProfile?.role === 'gestor' || userProfile?.role === 'fiscal') && (
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            onClick={() => { setEditingContract(undefined); setIsModalOpen(true); }}
+                            className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
+                          >
+                            <Plus className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
+                            <span>Novo Registro</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )}
 
                       {/* Item: Perfil */}
                       <SidebarMenuItem>
@@ -481,14 +543,28 @@ function App() {
                   {/* HEADER */}
                   <header className="bg-white border-b border-secti-border h-[72px] flex items-center justify-between px-6 lg:px-8 sticky top-0 z-10 shadow-sm shrink-0">
                     <div>
-                      <h1 className="text-xl font-bold text-[#0B2046] tracking-tight">Monitoramento de Prazos</h1>
+                      <h1 className="text-xl font-bold text-[#0B2046] tracking-tight">Painel Geral</h1>
                       <p className="text-xs text-gray-500 font-medium mt-0.5">Gestão unificada de contratos e convênios</p>
                     </div>
                     {userProfile && (
-                      <div className="hidden sm:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                      <div
+                        className="hidden sm:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 cursor-pointer"
+                        role="button"
+                        onClick={() => setCurrentPage('profile')}
+                      >
                         <span className="text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
-                        <div className="w-7 h-7 bg-[#00D1FF]/20 rounded-full flex items-center justify-center text-[#0B2046] text-xs font-bold">
-                          {firstName.charAt(0).toUpperCase()}
+                        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center bg-[#00D1FF]/20">
+                          {userProfile.photoBase64 ? (
+                            <img
+                              src={userProfile.photoBase64}
+                              alt="avatar"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-[#0B2046] text-xs font-bold">
+                              {firstName.charAt(0).toUpperCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -497,49 +573,42 @@ function App() {
                   {/* DASHBOARD BODY */}
                   <div className="p-6 lg:p-8 max-w-[1600px] w-full mx-auto flex-1">
                     
-                    {/* KPIS GRID - Corrigido para acomodar 5 itens perfeitamente */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                      <KpiCard
-                        title="Ativos Totais"
-                        value={kpis.total}
-                        icon={FileText}
-                        variant="neutral"
-                        isActive={activeFilter === 'Todos'}
-                        onClick={() => setActiveFilter('Todos')}
-                      />
-                      <KpiCard
-                        title="Vence em < 15 Dias"
-                        value={kpis.less15}
-                        icon={AlertTriangle}
-                        variant="critical"
-                        isActive={activeFilter === '<15'}
-                        onClick={() => setActiveFilter('<15')}
-                      />
-                      <KpiCard
-                        title="Vence em < 30 Dias"
-                        value={kpis.less30}
-                        icon={Clock}
-                        variant="warning"
-                        isActive={activeFilter === '<30'}
-                        onClick={() => setActiveFilter('<30')}
-                      />
-                      <KpiCard
-                        title="Vence em < 60 Dias"
-                        value={kpis.less60}
-                        icon={CheckCircle2}
-                        variant="safe"
-                        isActive={activeFilter === '<60'}
-                        onClick={() => setActiveFilter('<60')}
-                      />
-                      <KpiCard
-                        title="Vence em < 90 Dias"
-                        value={kpis.less90}
-                        icon={CheckCircle2}
-                        variant="safe"
-                        isActive={activeFilter === '<90'}
-                        onClick={() => setActiveFilter('<90')}
-                      />
-                    </div>
+                    {/* FILTER TABS – more compact and modern alternative to KPI cards */}
+                    <Tabs
+                      value={activeFilter}
+                      onValueChange={(val) => setActiveFilter(val as FilterType)}
+                      className="mb-6"
+                    >
+                      <TabsList>
+                        <TabsTrigger value="Todos">
+                          Todos <Badge className="ml-1" variant="outline">{kpis.total}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="<15">
+                          <AlertTriangle className="w-4 h-4 mr-1" />
+                          <span className="flex items-center">
+                            &lt;15 <Badge className="ml-1" variant="destructive">{kpis.less15}</Badge>
+                          </span>
+                        </TabsTrigger>
+                        <TabsTrigger value="<30">
+                          <Clock className="w-4 h-4 mr-1" />
+                          <span className="flex items-center">
+                            &lt;30 <Badge className="ml-1 bg-orange-100 text-orange-700" variant="outline">{kpis.less30}</Badge>
+                          </span>
+                        </TabsTrigger>
+                        <TabsTrigger value="<60">
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          <span className="flex items-center">
+                            &lt;60 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less60}</Badge>
+                          </span>
+                        </TabsTrigger>
+                        <TabsTrigger value="<90">
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          <span className="flex items-center">
+                            &lt;90 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less90}</Badge>
+                          </span>
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
 
                     {/* SEARCH / FILTER PANEL */}
                     <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -553,25 +622,23 @@ function App() {
                         />
                       </div>
                       
-                      <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border border-gray-100 shrink-0">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Filtro Ativo:</span>
-                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
-                          activeFilter === 'Todos' ? 'bg-[#0B2046] text-white' : 
-                          activeFilter === '<15' ? 'bg-red-100 text-red-700' :
-                          activeFilter === '<30' ? 'bg-orange-100 text-orange-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {activeFilter === 'Todos' ? 'TODOS' : activeFilter.replace('<', '< ')}
-                        </span>
-                      </div>
+                      {/* active filter indicator removed – tabs already make selection obvious */}
                     </div>
 
                     {/* TABLE AREA */}
                     <div className="bg-white rounded-lg border border-secti-border shadow-sm overflow-hidden">
                       <ContractsTable
                         contracts={filteredContracts}
-                        onEdit={(c) => { setEditingContract(c); setIsModalOpen(true); }}
+                        onEdit={
+                          userProfile &&
+                          (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                            ? (c) => { setEditingContract(c); setIsModalOpen(true); }
+                            : undefined
+                        }
                         onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
+                        onAddApostila={
+                          userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
+                        }
                       />
                     </div>
                   </div>
@@ -594,6 +661,12 @@ function App() {
                     }
                   : undefined
               } 
+            />
+            <ApostilaModal
+              isOpen={isApostilaOpen}
+              onClose={() => setIsApostilaOpen(false)}
+              contract={apostilaContract}
+              onSave={handleSaveApostila}
             />
 
             {viewingContract && (

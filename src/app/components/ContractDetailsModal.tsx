@@ -6,6 +6,7 @@ import { formatDate, formatCurrency } from '../utils/contract-helpers';
 import { Contract, HistoryEntry, HistoryChange } from '../types/contract';
 import { 
   FileSearch, 
+  FilePlus,
   Info, 
   History, 
   User, 
@@ -24,6 +25,32 @@ interface ContractDetailsModalProps {
 }
 
 export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDetailsModalProps) {
+  // mapear nomes de campo do contrato para rótulos amigáveis
+  const fieldLabels: Record<string, string> = {
+    numeroContrato: 'Nº Contrato',
+    empresa: 'Empresa',
+    objeto: 'Objeto',
+    gestor: 'Gestor',
+    fiscal: 'Fiscal',
+    situacao: 'Situação',
+    vigenciaInicial: 'Início',
+    vigenciaAtual: 'Vigência Atual',
+    ultimoTermoAditivo: 'Último Termo Aditivo',
+    valorInicial: 'Valor Inicial',
+    valorAtual: 'Valor Atual',
+    saldoDisponivel: 'Saldo Disponível',
+    valorPagoAno: 'Pago em 2025',
+    valorPagoAcumulado: 'Pago Acumulado',
+    garantia: 'Garantia',
+    numeroAcordoCooperacaoTecnica: 'Nº Acordo Coop.',
+    numeroTermoCooperacaoTecnica: 'Nº Termo Coop.',
+    numeroConvenio: 'Nº Convênio',
+    convenente: 'Convenente',
+    termoAdesao: 'Termo de Adesão',
+    apostilas: 'Apostilas',
+    // adicionar outros se necessário
+  };
+
   // Estado para controlar quais itens do histórico estão expandidos (guarda os índices)
   const [expandedEntries, setExpandedEntries] = useState<number[]>([]);
 
@@ -71,7 +98,15 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                       </div>
                       {entry.user && (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
-                          <User className="w-3.5 h-3.5 text-gray-400" />
+                          {entry.userPhoto ? (
+                            <img
+                              src={entry.userPhoto}
+                              alt={entry.user}
+                              className="w-4 h-4 rounded-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-gray-400" />
+                          )}
                           {entry.user}
                         </div>
                       )}
@@ -97,7 +132,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                           <li key={ci} className="text-sm flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2.5 rounded border border-gray-200 shadow-sm">
                             <strong className="capitalize text-gray-700 min-w-[140px] flex items-center gap-2">
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                              {chg.field}:
+                              {(fieldLabels[chg.field] || chg.field)}:
                             </strong>
                             <div className="flex items-center gap-3 text-gray-600 flex-1 overflow-hidden">
                               <span 
@@ -224,6 +259,23 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                       <p className="whitespace-pre-line text-sm text-gray-600 bg-orange-50/50 p-3 rounded border border-orange-100">
                         {contract.ultimoTermoAditivo}
                       </p>
+                    </div>
+                  )}
+
+                  {contract.apostilas && contract.apostilas.length > 0 && (
+                    <div className="space-y-1 pt-4 border-t border-gray-50">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider flex items-center gap-1">
+                        <FilePlus className="w-4 h-4 text-gray-400" /> Apostilas
+                      </span>
+                      <ul className="mt-2 space-y-2">
+                        {contract.apostilas.map((a, idx) => (
+                          <li key={idx} className="text-sm">
+                            <span className="font-mono text-xs text-gray-600">
+                              {formatDate(a.timestamp)}
+                            </span>{' '}- {a.note} {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>

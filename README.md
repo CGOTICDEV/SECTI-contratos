@@ -70,6 +70,8 @@ Este projeto utiliza Firebase Authentication e Firestore para persistência de u
 * Regras de segurança (`firestore.rules`) limitam leitura/criação dos registros de usuário somente ao próprio UID. A leitura de outros dados (contratos ou perfil) também exige que o e‑mail tenha sido verificado.
 * A coleção `contracts` permanece aberta para qualquer usuário autenticado e verificado.
 
+* **Novo:** contratos agora podem receber "apostilas" – anotações internas (ajustes de dotação, valores, prazos etc.) que não exigem termo aditivo formal. Usuários com papel **CCC** podem inserir e listar apostilas sem alterar o contrato principal. O histórico mantém registro de cada inclusão.
+
 Para testar:
 1. Ative Email/Password no console Firebase.
 2. Crie conta no app; verifique Firestore>users.

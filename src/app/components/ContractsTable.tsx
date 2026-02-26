@@ -9,19 +9,18 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
-import { Pencil, Download, SearchX, FileText, Handshake, Eye } from 'lucide-react';
+import { Pencil, Download, SearchX, FileText, Handshake, Eye, FilePlus } from 'lucide-react';
 import { Button } from './ui/button';
 import { exportContractsToExcel } from '../utils/excel';
 
 interface ContractsTableProps {
   contracts: Contract[];
   onEdit?: (contract: Contract) => void;
-  /** called when a row is clicked outside of the edit button */
   onView?: (contract: Contract) => void;
+  onAddApostila?: (contract: Contract) => void;
 }
 
-export function ContractsTable({ contracts, onEdit, onView }: ContractsTableProps) {
-  // Estado Vazio (Empty State)
+export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: ContractsTableProps) {
   if (contracts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-secti-border shadow-sm">
@@ -36,13 +35,11 @@ export function ContractsTable({ contracts, onEdit, onView }: ContractsTableProp
     );
   }
 
-  // determine if any record is a convênio so we can adjust columns
   const hasConvenios = contracts.some((c) => c.tipoRegistro === 'convenio');
 
   return (
     <div className="bg-white rounded-lg border border-secti-border overflow-hidden shadow-sm flex flex-col">
       
-      {/* Table Toolbar */}
       <div className="flex flex-col sm:flex-row justify-between items-center p-4 lg:px-6 border-b border-gray-100 bg-gray-50/50 gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-[#0B2046] uppercase tracking-wide">
@@ -62,7 +59,6 @@ export function ContractsTable({ contracts, onEdit, onView }: ContractsTableProp
         </Button>
       </div>
 
-      {/* Table Content */}
       <div className="overflow-x-auto custom-scrollbar">
         <Table>
           <TableHeader>
@@ -144,7 +140,12 @@ export function ContractsTable({ contracts, onEdit, onView }: ContractsTableProp
                   )}
 
                   <TableCell className="font-mono text-sm font-bold text-[#0B2046] py-3">
-                    {contract.numeroContrato || '-'}
+                    <div className="flex items-center gap-1">
+                      {contract.numeroContrato || '-'}
+                      {contract.apostilas && contract.apostilas.length > 0 && (
+                        <FilePlus className="w-4 h-4 text-purple-500" aria-hidden="true" />
+                      )}
+                    </div>
                   </TableCell>
 
                   {!hasConvenios && (
@@ -204,16 +205,30 @@ export function ContractsTable({ contracts, onEdit, onView }: ContractsTableProp
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">Visualizar</span>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => { e.stopPropagation(); onEdit?.(contract); }}
-                        className="h-8 w-8 text-gray-500 hover:text-green-600 hover:bg-green-50"
-                        title="Editar Registro"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
+                      {onEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); onEdit(contract); }}
+                          className="h-8 w-8 text-gray-500 hover:text-green-600 hover:bg-green-50"
+                          title="Editar Registro"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Editar</span>
+                        </Button>
+                      )}
+                      {onAddApostila && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); onAddApostila(contract); }}
+                          className="h-8 w-8 text-gray-500 hover:text-purple-600 hover:bg-purple-50"
+                          title="Adicionar Apostila"
+                        >
+                          <FilePlus className="h-4 w-4" />
+                          <span className="sr-only">Apostila</span>
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

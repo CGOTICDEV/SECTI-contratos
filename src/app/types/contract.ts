@@ -7,7 +7,14 @@ export interface HistoryChange {
 export interface HistoryEntry {
   timestamp: string;
   user?: string;
+  userPhoto?: string; // base64 or URL to display avatar
   changes: HistoryChange[];
+}
+
+export interface Apostila {
+  timestamp: string;
+  user?: string;
+  note: string;
 }
 
 export interface Contract {
@@ -30,7 +37,9 @@ export interface Contract {
   saldoDisponivel: number;
   valorPagoAno: number;
   valorPagoAcumulado: number;
+  // campo legado mantido por compatibilidade, mas a nova estrutura é um array
   apostila?: string;
+  apostilas?: Apostila[];
   garantia?: string;
 
   // campos exclusivos para convênios

@@ -22,7 +22,7 @@ import {
 } from './ui/select';
 import { Contract } from '../types/contract';
 import { Calendar, DollarSign, Info, FileText, CheckCircle2 } from 'lucide-react';
-import { formatCurrency } from '../utils/contract-helpers';
+import { formatCurrency, formatDate } from '../utils/contract-helpers';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -320,6 +320,18 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
                       placeholder="Descreva o conteúdo do último termo aditivo (datas, prorrogações, etc.)"
                     />
                   </div> 
+                  {formData.apostilas && formData.apostilas.length > 0 && (
+                    <div className="space-y-1 pt-4 border-t border-gray-100">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Apostilas existentes</span>
+                      <ul className="text-sm space-y-1">
+                        {formData.apostilas.map((a, idx) => (
+                          <li key={idx}>
+                            <span className="font-mono text-xs">{formatDate(a.timestamp)}</span> – {a.note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 

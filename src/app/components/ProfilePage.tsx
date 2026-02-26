@@ -125,29 +125,35 @@ export function ProfilePage({ profile }: ProfilePageProps) {
           <h1 className="text-xl font-bold">Meu Perfil</h1>
         </header>
         <div className="flex items-center gap-6 mb-8">
-          <div className="relative">
-            {form?.photoBase64 ? (
-              <img
-                src={form.photoBase64}
-                alt="avatar"
-                className="w-32 h-32 rounded-full object-cover border"
-              />
-            ) : (
-              <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center">
-                <User className="w-16 h-16 text-gray-400" />
-              </div>
-            )}
-            {editMode && (
-              <label className="absolute bottom-0 right-0 bg-white rounded-full p-1 cursor-pointer border">
-                <Camera className="w-4 h-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
+          {/* image wrapper keeps icon close to photo */}
+          <div>
+            <div className="relative inline-block">
+              {form?.photoBase64 ? (
+                <img
+                  src={form.photoBase64}
+                  alt="avatar"
+                  className="w-32 h-32 rounded-full object-cover border"
                 />
-              </label>
-            )}
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center">
+                  <User className="w-16 h-16 text-gray-400" />
+                </div>
+              )}
+              {editMode && (
+                <label className="absolute bottom-0 right-0 bg-white rounded-full p-1 cursor-pointer border">
+                  <Camera className="w-4 h-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </label>
+              )}
+            </div>
+            <p className="text-[10px] text-secti-muted mt-2 max-w-xs">
+              Sua foto será exibida ao lado de suas ações no histórico de contratos.
+            </p>
           </div>
           <div className="flex-1">
             {editMode ? (

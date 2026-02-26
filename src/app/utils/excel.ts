@@ -82,7 +82,8 @@ export async function exportContractsToExcel(
         },
         { key: 'garantia', header: 'Garantia', type: 's', width: 20 },
         { key: 'ultimoTermoAditivo', header: 'Último Termo', type: 's', width: 20 },
-        { key: 'termoAdesao', header: 'Termo de Adesão', type: 's', width: 20 }
+        { key: 'termoAdesao', header: 'Termo de Adesão', type: 's', width: 20 },
+        { key: 'apostilas', header: 'Apostilas', type: 's', width: 40 }
     ];
 
     const wb = new ExcelJS.Workbook();
@@ -116,6 +117,10 @@ export async function exportContractsToExcel(
                     return c.vigenciaAtual ? new Date(c.vigenciaAtual) : '';
                 case 'tipoRegistro':
                     return c.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato';
+                case 'apostilas':
+                    return (c as any).apostilas
+                        ? (c as any).apostilas.map((a: any) => a.note).join('; ')
+                        : '';
                 default:
                     return (c as any)[col.key] ?? '';
             }
