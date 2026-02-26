@@ -238,10 +238,11 @@ function App() {
 
         const changes = computeChanges(editingContract, after);
         if (changes.length > 0) {
-          const entry = {
+          const entry: any = {
             timestamp: new Date().toISOString(),
-            user: userProfile?.email || userProfile?.uid || undefined,
-            userPhoto: userProfile?.photoBase64,
+            // prefer email and always lowercase so we can match easily later
+            user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
+            // do not save photo on each entry any more
             changes,
           };
           await updateDoc(ref, {
@@ -268,10 +269,10 @@ function App() {
         }
 
         const changes = computeChanges(null, newContract);
-        const createdEntry = {
+        const createdEntry: any = {
           timestamp: new Date().toISOString(),
-          user: userProfile?.email || userProfile?.uid || undefined,
-          userPhoto: userProfile?.photoBase64,
+          user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
+          // no photo stored here anymore
           changes,
         };
         newContract.history = [createdEntry];
@@ -297,10 +298,10 @@ function App() {
       if (!apostilaContract) return;
       const ref = doc(db, 'contracts', id);
       const current = apostilaContract;
-      const newEntry = {
+      const newEntry: any = {
         timestamp: new Date().toISOString(),
-        user: userProfile?.email || userProfile?.uid || undefined,
-        userPhoto: userProfile?.photoBase64,
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
+        // apostila entries still keep user but not photo
         note,
       };
       const updated: Contract = {
@@ -308,9 +309,9 @@ function App() {
         apostilas: [...(current.apostilas || []), newEntry],
       };
       const changes = computeChanges(current, updated);
-      const historyEntry = {
+      const historyEntry: any = {
         timestamp: new Date().toISOString(),
-        user: userProfile?.email || userProfile?.uid || null,
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
         changes,
       };
       await updateDoc(ref, {
@@ -429,7 +430,8 @@ function App() {
       try {
         await addUser({
           uid: userCred.user.uid,
-          email: userCred.user.email,
+          // store email consistently as lowercase so lookups are easy
+          email: userCred.user.email?.toLowerCase(),
           displayName: username,
           role,
           photoBase64,

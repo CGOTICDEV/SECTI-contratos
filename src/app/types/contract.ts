@@ -6,8 +6,13 @@ export interface HistoryChange {
 
 export interface HistoryEntry {
   timestamp: string;
-  user?: string;
-  userPhoto?: string; // base64 or URL to display avatar
+  user?: string; // email (preferred) or uid of the user who made the change
+  // `userPhoto` used to be stored here, but we no longer save a copy of the
+  // avatar with every history entry.  When the UI needs an image it will
+  // look up the user by email and read `photoBase64` from the users
+  // collection.  The field is kept for backwards compatibility but should
+  // never be written going forward.
+  userPhoto?: string;
   changes: HistoryChange[];
 }
 

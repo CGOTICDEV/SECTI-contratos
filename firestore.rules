@@ -12,8 +12,13 @@ service cloud.firestore {
     match /users/{userId} {
       // user record may be created immediately after signup (verification pending)
       allow create: if request.auth != null && request.auth.uid == userId;
-      // profile data may only be read once the e‑mail has been verified
-      allow read: if request.auth != null && request.auth.uid == userId && request.auth.token.email_verified == true;
+
+      // profile data may only be read once the e‑mail has been verified.
+      // we also permit global reads (for avatars/history) as long as the
+      // requester is authenticated and email‑verified.  restrict further if
+      // you only want to expose `photoBase64` or other subset of fields.
+      allow read: if request.auth != null && request.auth.token.email_verified == true;
+
       // allow the owner to modify their own profile once their e‑mail is verified
       allow update: if request.auth != null
                     && request.auth.uid == userId

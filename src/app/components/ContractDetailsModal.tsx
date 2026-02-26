@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
@@ -17,6 +17,10 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+
+// firestore helpers used to resolve user avatars
+import { db } from '../../firebase';
+import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
@@ -53,6 +57,79 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
 
   // Estado para controlar quais itens do histórico estão expandidos (guarda os índices)
   const [expandedEntries, setExpandedEntries] = useState<number[]>([]);
+
+  // cache of user photos keyed by normalized email
+  const [userPhotos, setUserPhotos] = useState<Record<string,string>>({});
+
+  // whenever the contract history changes we want to pre‑fetch the avatars for the
+  // users involved.  the logic will batch the email lookups to avoid Firestore's
+  // 10-element `in` query limit and store results in `userPhotos`.
+  useEffect(() => {
+    async function loadPhotos() {
+      if (!contract.history || contract.history.length === 0) return;
+
+      const emailCandidates: string[] = [];
+      const uidCandidates: string[] = [];
+      contract.history.forEach((e) => {
+        const u = e.user?.toString();
+        if (!u) return;
+        if (u.includes('@')) {
+          emailCandidates.push(u.toLowerCase());
+        } else {
+          uidCandidates.push(u);
+        }
+      });
+
+      const uniqueEmails = Array.from(new Set(emailCandidates));
+      const uniqueUids = Array.from(new Set(uidCandidates));
+      if (uniqueEmails.length === 0 && uniqueUids.length === 0) return;
+
+      const results: Record<string,string> = {};
+
+      try {
+        // query by email in chunks
+        for (let i = 0; i < uniqueEmails.length; i += 10) {
+          const chunk = uniqueEmails.slice(i, i + 10);
+          const q = query(collection(db, 'users'), where('email', 'in', chunk));
+          const snap = await getDocs(q);
+          snap.forEach((docSnap) => {
+            const data = docSnap.data() as any;
+            if (data.email && data.photoBase64) {
+              const emailKey = data.email.toLowerCase();
+              results[emailKey] = data.photoBase64;
+              // also map by uid in case history contains the uid later
+              if (data.uid) results[data.uid] = data.photoBase64;
+            }
+          });
+        }
+
+        // fetch individual uids that weren't covered above
+        for (const uid of uniqueUids) {
+          if (results[uid]) continue; // already got it via email query
+          try {
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            if (userDoc.exists()) {
+              const data = userDoc.data() as any;
+              if (data.photoBase64) {
+                results[uid] = data.photoBase64;
+                if (data.email) results[data.email.toLowerCase()] = data.photoBase64;
+              }
+            }
+          } catch {
+            // ignore individual failures
+          }
+        }
+
+        setUserPhotos(results);
+      } catch (permErr: any) {
+        // permission errors are expected if firestore rules prevent reading
+        // other user profiles.  simply log and continue with no avatars.
+        console.warn('could not load user photos:', permErr.message || permErr);
+      }
+    }
+
+    loadPhotos();
+  }, [contract.history]);
 
   const toggleEntry = (idx: number) => {
     setExpandedEntries((prev) =>
@@ -98,9 +175,18 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                       </div>
                       {entry.user && (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
-                          {entry.userPhoto ? (
+                          {(
+                            // try direct key, lowercase key (for email) and finally old photo
+                            userPhotos[entry.user.toString()] ||
+                            userPhotos[entry.user.toString().toLowerCase()] ||
+                            entry.userPhoto
+                          ) ? (
                             <img
-                              src={entry.userPhoto}
+                              src={
+                                userPhotos[entry.user.toString()] ||
+                                userPhotos[entry.user.toString().toLowerCase()] ||
+                                entry.userPhoto!
+                              }
                               alt={entry.user}
                               className="w-4 h-4 rounded-full object-cover"
                             />
