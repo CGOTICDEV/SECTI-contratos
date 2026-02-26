@@ -33,6 +33,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarProvider,
+  SidebarTrigger, // Importado para controle mobile da sidebar
 } from './components/ui/sidebar';
 import { Contract } from './types/contract';
 import { UserProfile } from './types/user';
@@ -487,15 +488,15 @@ function App() {
             {/* SIDEBAR */}
             <Sidebar className="bg-[#0B2046] border-r border-secti-border shadow-lg">
               <SidebarContent className="bg-[#0B2046] text-white">
-                <div className="p-6">
-                  <h2 className="text-2xl font-extrabold tracking-tight text-[#00D1FF]">SECTI</h2>
-                  <p className="text-[11px] font-mono text-white/60 uppercase tracking-[0.2em] mt-1">
+                <div className="p-4 sm:p-6">
+                  <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#00D1FF]">SECTI</h2>
+                  <p className="text-[10px] sm:text-[11px] font-mono text-white/60 uppercase tracking-[0.2em] mt-1">
                     Contratos & Convênios
                   </p>
                 </div>
                 
-                <SidebarGroup className="mt-4">
-                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-6 mb-2">
+                <SidebarGroup className="mt-2 sm:mt-4">
+                  <SidebarGroupLabel className="text-white/40 text-[10px] uppercase font-bold px-4 sm:px-6 mb-2">
                     Navegação Principal
                   </SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -505,7 +506,7 @@ function App() {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => setCurrentPage('dashboard')}
-                          className={`px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
+                          className={`px-4 sm:px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
                             currentPage === 'dashboard' 
                               ? 'bg-[#0056B3]/40 border-[#00D1FF] font-semibold' 
                               : 'border-transparent hover:bg-white/5 font-medium'
@@ -521,7 +522,7 @@ function App() {
                         <SidebarMenuItem>
                           <SidebarMenuButton
                             onClick={() => { setEditingContract(undefined); setIsModalOpen(true); }}
-                            className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
+                            className="px-4 sm:px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
                           >
                             <Plus className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
                             <span>Novo Registro</span>
@@ -533,7 +534,7 @@ function App() {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => setCurrentPage('profile')}
-                          className={`px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
+                          className={`px-4 sm:px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
                             currentPage === 'profile' 
                               ? 'bg-[#0056B3]/40 border-[#00D1FF] font-semibold' 
                               : 'border-transparent hover:bg-white/5 font-medium'
@@ -548,7 +549,7 @@ function App() {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => setIsTutorialOpen(true)}
-                          className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
+                          className="px-4 sm:px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
                         >
                           <HelpCircle className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
                           <span>Tutorial</span>
@@ -575,25 +576,28 @@ function App() {
             <main className="flex-1 overflow-y-auto flex flex-col w-full relative">
               {currentPage === 'profile' ? (
                 <div className="animate-in fade-in duration-300 h-full">
-                  <ProfilePage profile={userProfile} />
+                  <ProfilePage profile={userProfile} onBackToDashboard={() => setCurrentPage('dashboard')} />
                 </div>
               ) : (
                 <div className="flex flex-col min-h-full animate-in fade-in duration-300">
                   
                   {/* HEADER */}
-                  <header className="bg-white border-b border-secti-border h-[72px] flex items-center justify-between px-6 lg:px-8 sticky top-0 z-10 shadow-sm shrink-0">
-                    <div>
-                      <h1 className="text-xl font-bold text-[#0B2046] tracking-tight">Painel Geral</h1>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">Gestão unificada de contratos e convênios</p>
+                  <header className="bg-white border-b border-secti-border h-[72px] flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-10 shadow-sm shrink-0">
+                    <div className="flex items-center gap-3">
+                      <SidebarTrigger className="md:hidden text-[#0B2046]" />
+                      <div>
+                        <h1 className="text-lg sm:text-xl font-bold text-[#0B2046] tracking-tight">Painel Geral</h1>
+                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium mt-0.5">Gestão unificada de contratos e convênios</p>
+                      </div>
                     </div>
                     {userProfile && (
                       <div
-                        className="hidden sm:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 cursor-pointer"
+                        className="flex items-center gap-2 bg-gray-50 px-2 sm:px-3 py-1.5 rounded-full border border-gray-100 cursor-pointer"
                         role="button"
                         onClick={() => setCurrentPage('profile')}
                       >
-                        <span className="text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
-                        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center bg-[#00D1FF]/20">
+                        <span className="hidden sm:inline text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden flex items-center justify-center bg-[#00D1FF]/20">
                           {userProfile.photoBase64 ? (
                             <img
                               src={userProfile.photoBase64}
@@ -601,7 +605,7 @@ function App() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="text-[#0B2046] text-xs font-bold">
+                            <span className="text-[#0B2046] text-[10px] sm:text-xs font-bold">
                               {firstName.charAt(0).toUpperCase()}
                             </span>
                           )}
@@ -611,75 +615,77 @@ function App() {
                   </header>
 
                   {/* DASHBOARD BODY */}
-                  <div className="p-6 lg:p-8 max-w-[1600px] w-full mx-auto flex-1">
+                  <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto flex-1 flex flex-col">
                     
                     {/* FILTER TABS – more compact and modern alternative to KPI cards */}
-                    <Tabs
-                      value={activeFilter}
-                      onValueChange={(val) => setActiveFilter(val as FilterType)}
-                      className="mb-6"
-                    >
-                      <TabsList>
-                        <TabsTrigger value="Todos">
-                          Todos <Badge className="ml-1" variant="outline">{kpis.total}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger value="<15">
-                          <AlertTriangle className="w-4 h-4 mr-1" />
-                          <span className="flex items-center">
-                            &lt;15 <Badge className="ml-1" variant="destructive">{kpis.less15}</Badge>
-                          </span>
-                        </TabsTrigger>
-                        <TabsTrigger value="<30">
-                          <Clock className="w-4 h-4 mr-1" />
-                          <span className="flex items-center">
-                            &lt;30 <Badge className="ml-1 bg-orange-100 text-orange-700" variant="outline">{kpis.less30}</Badge>
-                          </span>
-                        </TabsTrigger>
-                        <TabsTrigger value="<60">
-                          <CheckCircle2 className="w-4 h-4 mr-1" />
-                          <span className="flex items-center">
-                            &lt;60 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less60}</Badge>
-                          </span>
-                        </TabsTrigger>
-                        <TabsTrigger value="<90">
-                          <CheckCircle2 className="w-4 h-4 mr-1" />
-                          <span className="flex items-center">
-                            &lt;90 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less90}</Badge>
-                          </span>
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
+                    <div className="w-full overflow-x-auto pb-2 mb-4 sm:mb-6 scrollbar-hide">
+                      <Tabs
+                        value={activeFilter}
+                        onValueChange={(val) => setActiveFilter(val as FilterType)}
+                        className="w-min sm:w-full"
+                      >
+                        <TabsList className="flex w-fit sm:w-full justify-start flex-nowrap h-10">
+                          <TabsTrigger value="Todos" className="whitespace-nowrap">
+                            Todos <Badge className="ml-1" variant="outline">{kpis.total}</Badge>
+                          </TabsTrigger>
+                          <TabsTrigger value="<15" className="whitespace-nowrap">
+                            <AlertTriangle className="w-4 h-4 mr-1" />
+                            <span className="flex items-center">
+                              &lt;15 <Badge className="ml-1" variant="destructive">{kpis.less15}</Badge>
+                            </span>
+                          </TabsTrigger>
+                          <TabsTrigger value="<30" className="whitespace-nowrap">
+                            <Clock className="w-4 h-4 mr-1" />
+                            <span className="flex items-center">
+                              &lt;30 <Badge className="ml-1 bg-orange-100 text-orange-700" variant="outline">{kpis.less30}</Badge>
+                            </span>
+                          </TabsTrigger>
+                          <TabsTrigger value="<60" className="whitespace-nowrap">
+                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            <span className="flex items-center">
+                              &lt;60 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less60}</Badge>
+                            </span>
+                          </TabsTrigger>
+                          <TabsTrigger value="<90" className="whitespace-nowrap">
+                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            <span className="flex items-center">
+                              &lt;90 <Badge className="ml-1 bg-green-100 text-green-700" variant="outline">{kpis.less90}</Badge>
+                            </span>
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
 
                     {/* SEARCH / FILTER PANEL */}
-                    <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="relative w-full max-w-xl">
+                    <div className="bg-white p-4 sm:p-5 rounded-lg border border-secti-border shadow-sm mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                      <div className="relative w-full sm:max-w-xl">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          placeholder="Pesquisar por empresa, contrato, convênio ou responsável..."
+                          placeholder="Pesquisar por empresa, contrato, convênio..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10 h-11 border-gray-200 bg-gray-50 focus:bg-white focus:ring-1 focus:ring-[#00D1FF] transition-colors rounded-md text-sm"
+                          className="pl-10 h-11 w-full border-gray-200 bg-gray-50 focus:bg-white focus:ring-1 focus:ring-[#00D1FF] transition-colors rounded-md text-sm"
                         />
                       </div>
-                      
-                      {/* active filter indicator removed – tabs already make selection obvious */}
                     </div>
 
                     {/* TABLE AREA */}
-                    <div className="bg-white rounded-lg border border-secti-border shadow-sm overflow-hidden">
-                      <ContractsTable
-                        contracts={filteredContracts}
-                        onEdit={
-                          userProfile &&
-                          (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
-                            ? (c) => { setEditingContract(c); setIsModalOpen(true); }
-                            : undefined
-                        }
-                        onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
-                        onAddApostila={
-                          userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
-                        }
-                      />
+                    <div className="bg-white rounded-lg border border-secti-border shadow-sm overflow-x-auto w-full">
+                      <div className="min-w-[800px]">
+                        <ContractsTable
+                          contracts={filteredContracts}
+                          onEdit={
+                            userProfile &&
+                            (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                              ? (c) => { setEditingContract(c); setIsModalOpen(true); }
+                              : undefined
+                          }
+                          onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
+                          onAddApostila={
+                            userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

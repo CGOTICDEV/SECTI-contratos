@@ -40,7 +40,8 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
   return (
     <div className="bg-white rounded-lg border border-secti-border overflow-hidden shadow-sm flex flex-col">
       
-      <div className="flex flex-col sm:flex-row justify-between items-center p-4 lg:px-6 border-b border-gray-100 bg-gray-50/50 gap-4">
+      {/* Header section - Responsive */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 lg:px-6 border-b border-gray-100 bg-gray-50/50 gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-[#0B2046] uppercase tracking-wide">
             Registros Encontrados
@@ -52,14 +53,114 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
         <Button
           size="sm"
           onClick={() => exportContractsToExcel(contracts)}
-          className="h-9 gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors"
+          className="h-9 gap-2 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors"
         >
           <Download className="w-4 h-4" />
           Exportar Excel
         </Button>
       </div>
 
-      <div className="overflow-x-auto custom-scrollbar">
+      {/* MOBILE VIEW (Cards) */}
+      <div className="block md:hidden flex-col">
+        {contracts.map((contract, idx) => {
+          const status = getContractStatus(contract);
+          const isConvenio = contract.tipoRegistro === 'convenio';
+
+          return (
+            <div
+              key={contract.id}
+              onClick={() => onView?.(contract)}
+              className="p-4 border-b border-gray-100 last:border-0 hover:bg-blue-50/40 active:bg-blue-50/60 transition-colors flex flex-col gap-3 cursor-pointer"
+            >
+              {/* Header: Status and Type/Number */}
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50 px-2 py-1 rounded w-fit border border-gray-100">
+                    {isConvenio ? <Handshake className="w-3.5 h-3.5 text-indigo-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
+                    <span className="text-[11px] font-medium uppercase tracking-wider">{isConvenio ? 'Convênio' : 'Contrato'}</span>
+                  </div>
+                  <div className="font-mono text-sm font-bold text-[#0B2046] flex items-center gap-1">
+                    {contract.numeroContrato || contract.numeroConvenio || '-'}
+                    {contract.apostilas && contract.apostilas.length > 0 && (
+                      <FilePlus className="w-4 h-4 text-purple-500" aria-hidden="true" />
+                    )}
+                  </div>
+                </div>
+                <Badge
+                  className={`
+                    ${status.bgColor} ${status.textColor} ${status.borderColor}
+                    border px-2 py-0.5 font-semibold rounded-md text-[10px] uppercase tracking-wide shadow-sm text-center
+                  `}
+                >
+                  {status.label}
+                </Badge>
+              </div>
+
+              {/* Body: Empresa/Convenente & Objeto */}
+              <div>
+                <p className="text-sm font-semibold text-gray-900 line-clamp-1">
+                  {contract.convenente || contract.empresa || 'Não informado'}
+                </p>
+                <p className="text-xs text-gray-500 line-clamp-2 mt-0.5 leading-relaxed">
+                  {contract.objeto || 'Sem descrição'}
+                </p>
+              </div>
+
+              {/* Footer Details: Grid layout for Gestor, Vigência, and Saldo */}
+              <div className="grid grid-cols-2 gap-3 mt-1 bg-gray-50/50 p-2.5 rounded-md border border-gray-50">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Gestor / Fiscal</span>
+                  <span className="text-xs font-semibold text-gray-800 truncate">{contract.gestor || '-'}</span>
+                  <span className="text-[11px] text-gray-500 truncate">{contract.fiscal || '-'}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 text-right items-end">
+                  <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Vigência / Saldo</span>
+                  <span className="font-mono text-xs font-medium text-gray-700">{formatDate(contract.vigenciaAtual)}</span>
+                  <span className="font-mono text-xs font-bold text-[#0B2046]">{formatCurrency(contract.saldoDisponivel)}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-1.5 pt-2 mt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); onView?.(contract); }}
+                  className="h-8 px-2 text-gray-600 border-gray-200"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Ver
+                </Button>
+                {onEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onEdit(contract); }}
+                    className="h-8 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Editar
+                  </Button>
+                )}
+                {onAddApostila && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onAddApostila(contract); }}
+                    className="h-8 px-2 text-purple-600 border-purple-200 hover:bg-purple-50"
+                  >
+                    <FilePlus className="h-4 w-4 mr-1" />
+                    Apostila
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* DESKTOP VIEW (Table) */}
+      <div className="hidden md:block overflow-x-auto custom-scrollbar">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50 hover:bg-gray-50 border-b border-secti-border">
