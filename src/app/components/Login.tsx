@@ -30,6 +30,7 @@ import {
   DialogFooter,
   DialogHeader,
 } from './ui/dialog';
+import { TutorialModal } from './TutorialModal.tsx';
 
 const sectiDomain = '@secti.ba.gov.br';
 
@@ -64,10 +65,11 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Modais
-  const [modalType, setModalType] = useState<'forgot' | 'link' | 'tutorial' | null>(null);
+  const [modalType, setModalType] = useState<'forgot' | 'link' | null>(null);
   const [modalEmail, setModalEmail] = useState('');
   const [modalSubmitting, setModalSubmitting] = useState(false);
   const [infoMessage, setInfoMessage] = useState('');
+  const [showTutorial, setShowTutorial] = useState(false);
   
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
@@ -156,7 +158,7 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
   };
 
   const handleModalSubmit = async () => {
-    if (!modalEmail.trim() || modalType === 'tutorial') return;
+    if (!modalEmail.trim()) return;
     
     let tgt = modalEmail;
     if (!tgt.includes('@')) {
@@ -220,7 +222,7 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
           
           <header className="bg-[#0B2046] p-6 text-center border-b-4 border-[#00D1FF] relative">
             <button 
-              onClick={() => setModalType('tutorial')}
+              onClick={() => setShowTutorial(true)}
               className="absolute top-4 right-4 text-[#00D1FF]/70 hover:text-[#00D1FF] transition-colors"
               title="Como funciona o sistema?"
             >
@@ -419,83 +421,59 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
         </div>
       </div>
 
-      {/* MODAIS (Recuperação de Senha, Link e Tutorial) */}
+      {/* MODAIS (Recuperação de Senha / Link) */}
       <Dialog open={!!modalType} onOpenChange={(open) => { if (!open) closeModal(); }}>
         <DialogContent className="sm:max-w-md">
-          {modalType === 'tutorial' ? (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-[#0B2046] flex items-center gap-2">
-                  <HelpCircle className="w-5 h-5 text-[#00D1FF]" />
-                  Como funciona o sistema?
-                </DialogTitle>
-                <DialogDescription className="pt-3 text-sm text-gray-600 space-y-3">
-                  <p>
-                    Este painel unifica a gestão de contratos e convênios da SECTI. O acesso é restrito e feito exclusivamente com seu <strong>e-mail institucional</strong>.
-                  </p>
-                  <div className="bg-gray-50 p-3 rounded-md border border-gray-100 mt-2">
-                    <h4 className="font-semibold text-gray-800 mb-2 text-xs uppercase tracking-wider">Perfis de Acesso</h4>
-                    <ul className="space-y-2 text-xs">
-                      <li><strong className="text-[#0B2046]">Gestor:</strong> Cria contratos, edita dados gerais (fornecedores, prazos) e acompanha.</li>
-                      <li><strong className="text-[#0B2046]">Fiscal:</strong> Registra e monitora execuções técnicas/financeiras e atualiza pagamentos.</li>
-                      <li><strong className="text-[#0B2046]">CCC:</strong> Acesso consultivo global e adição de apostilas oficiais.</li>
-                    </ul>
-                  </div>
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="sm:justify-center mt-2">
-                <Button variant="outline" onClick={closeModal} className="w-full">Entendi</Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-[#0B2046]">
-                  {modalType === 'forgot' ? 'Recuperar senha' : 'Acesso por link mágico'}
-                </DialogTitle>
-                <DialogDescription>
-                  Informe seu e‑mail institucional. Enviaremos as instruções para a sua caixa de entrada.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 py-4">
-                <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">E-mail Institucional</Label>
-                <Input
-                  type="email"
-                  placeholder="nome.sobrenome"
-                  value={modalEmail}
-                  onChange={(e) => setModalEmail(e.target.value)}
-                  onFocus={() => {
-                    if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
-                  }}
-                  onBlur={() => {
-                    if (modalEmail && !modalEmail.includes('@')) {
-                      animateDomainTyping(modalEmail, setModalEmail);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleModalSubmit();
-                    }
-                  }}
-                />
-                <p className="text-[9px] text-secti-muted mt-1">Digite apenas a parte antes do “@”; o domínio será anexado automaticamente.</p>
-                {infoMessage && <p className="text-xs text-green-600 font-medium mt-2">{infoMessage}</p>}
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={closeModal} disabled={modalSubmitting}>Cancelar</Button>
-                <Button 
-                  onClick={handleModalSubmit} 
-                  disabled={modalSubmitting || !modalEmail.trim()}
-                  className="bg-[#0B2046] hover:bg-[#0056B3] text-white"
-                >
-                  {modalSubmitting ? 'Enviando...' : 'Enviar Link'}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-[#0B2046]">
+                {modalType === 'forgot' ? 'Recuperar senha' : 'Acesso por link mágico'}
+              </DialogTitle>
+              <DialogDescription>
+                Informe seu e‑mail institucional. Enviaremos as instruções para a sua caixa de entrada.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label className="text-[10px] font-bold uppercase text-secti-muted ml-1">E-mail Institucional</Label>
+              <Input
+                type="email"
+                placeholder="nome.sobrenome"
+                value={modalEmail}
+                onChange={(e) => setModalEmail(e.target.value)}
+                onFocus={() => {
+                  if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+                }}
+                onBlur={() => {
+                   if (modalEmail && !modalEmail.includes('@')) {
+                     animateDomainTyping(modalEmail, setModalEmail);
+                   }
+                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleModalSubmit();
+                  }
+                }}
+              />
+              <p className="text-[9px] text-secti-muted mt-1">Digite apenas a parte antes do “@”; o domínio será anexado automaticamente.</p>
+              {infoMessage && <p className="text-xs text-green-600 font-medium mt-2">{infoMessage}</p>}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={closeModal} disabled={modalSubmitting}>Cancelar</Button>
+              <Button 
+                onClick={handleModalSubmit} 
+                disabled={modalSubmitting || !modalEmail.trim()}
+                className="bg-[#0B2046] hover:bg-[#0056B3] text-white"
+              >
+                {modalSubmitting ? 'Enviando...' : 'Enviar Link'}
+              </Button>
+            </DialogFooter>
+          </>
         </DialogContent>
       </Dialog>
+
+      {/* TUTORIAL (reutilizável) */}
+      <TutorialModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     </div>
   );
 }

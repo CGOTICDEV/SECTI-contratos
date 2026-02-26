@@ -9,6 +9,7 @@ import {
   LogOut,
   LayoutDashboard,
   User,
+  HelpCircle,
 } from 'lucide-react';
 // KPI cards were replaced by a tabbed filter control
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -19,6 +20,7 @@ import { ContractDetailsModal } from './components/ContractDetailsModal';
 import { ApostilaModal } from './components/ApostilaModal';
 import { Login } from './components/Login';
 import { ProfilePage } from './components/ProfilePage';
+import { TutorialModal } from './components/TutorialModal';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import {
@@ -77,6 +79,9 @@ function App() {
 
   const [viewingContract, setViewingContract] = useState<Contract | undefined>();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // tutorial modal (accessible from sidebar)
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   // apostila modal state (only for CCC users)
   const [apostilaContract, setApostilaContract] = useState<Contract | null>(null);
@@ -514,6 +519,17 @@ function App() {
                           <span>Meu Perfil</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
+
+                      {/* Item: Tutorial (sempre visível) */}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={() => setIsTutorialOpen(true)}
+                          className="px-6 h-12 hover:bg-white/5 transition-all text-white gap-3 rounded-none border-l-4 border-transparent font-medium group"
+                        >
+                          <HelpCircle className="w-5 h-5 text-white/70 group-hover:text-[#00D1FF] transition-colors" />
+                          <span>Tutorial</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>
@@ -668,6 +684,9 @@ function App() {
               contract={apostilaContract}
               onSave={handleSaveApostila}
             />
+
+            {/* tutorial modal for authenticated users */}
+            <TutorialModal isOpen={isTutorialOpen} onClose={() => setIsTutorialOpen(false)} />
 
             {viewingContract && (
               <ContractDetailsModal

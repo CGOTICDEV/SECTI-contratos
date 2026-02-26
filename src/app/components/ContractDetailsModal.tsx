@@ -136,7 +136,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                             </strong>
                             <div className="flex items-center gap-3 text-gray-600 flex-1 overflow-hidden">
                               <span 
-                                className="truncate line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded" 
+                                className="line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded" 
                                 title={String(chg.before) || 'Vazio'}
                               >
                                 {String(chg.before) || 'Vazio'}
