@@ -33,7 +33,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarProvider,
-  SidebarTrigger, // Importado para controle mobile da sidebar
+  SidebarTrigger,
 } from './components/ui/sidebar';
 import { Contract } from './types/contract';
 import { UserProfile } from './types/user';

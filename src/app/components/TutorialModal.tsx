@@ -5,8 +5,8 @@ import {
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { 
-  BookOpen, Key, Users, Compass, LayoutDashboard, 
-  Table, Search, Edit, FileText, UserCircle, 
+  BookOpen, Compass, LayoutDashboard, 
+  Search, Edit, FileText, UserCircle, 
   CheckCircle, Lightbulb, AlertCircle, Info, ArrowRight,
   ShieldCheck, FileSignature, Eye
 } from 'lucide-react';
@@ -49,7 +49,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
             {/* 1. Acesso e Autenticação */}
             <section>
               <div className="flex items-center gap-2 mb-5">
-                <Key className="text-primary h-6 w-6" />
+                <img src="/iconsSVG_animated/key.svg" alt="Acesso e autenticação" className="h-15 w-15" />
                 <h3 className="text-xl font-semibold text-foreground tracking-tight">Acesso e Autenticação</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -70,7 +70,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
             {/* 2. Perfis e Permissões */}
             <section>
               <div className="flex items-center gap-2 mb-5">
-                <Users className="text-primary h-6 w-6" />
+                <img src="/iconsSVG_animated/users.svg" alt="Perfis e permissões" className="h-15 w-15" />
                 <h3 className="text-xl font-semibold text-foreground tracking-tight">Perfis e Permissões</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -113,7 +113,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
             {/* 5. Tabela */}
             <section className="border-t border-border/50 pt-8">
               <div className="flex items-center gap-2 mb-5">
-                <Table className="text-primary h-6 w-6" />
+                <img src="/iconsSVG_animated/table.svg" alt="Tabela de contratos" className="h-15 w-15" />
                 <h3 className="text-xl font-semibold text-foreground tracking-tight">Tabela de Contratos</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
