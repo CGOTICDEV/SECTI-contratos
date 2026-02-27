@@ -488,11 +488,12 @@ function App() {
             {/* SIDEBAR */}
             <Sidebar className="bg-[#0B2046] border-r border-secti-border shadow-lg">
               <SidebarContent className="bg-[#0B2046] text-white">
-                <div className="p-4 sm:p-6">
-                  <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#00D1FF]">SECTI</h2>
-                  <p className="text-[10px] sm:text-[11px] font-mono text-white/60 uppercase tracking-[0.2em] mt-1">
-                    Contratos & Convênios
-                  </p>
+                <div className="flex flex-col items-center">
+                  <img
+                    src="/sectilogo.svg"
+                    alt="Logo SECTI"
+                    className=" h-auto mb-2"
+                  />
                 </div>
                 
                 <SidebarGroup className="mt-2 sm:mt-4">
@@ -565,7 +566,7 @@ function App() {
                     onClick={handleLogout}
                     className="w-full justify-start text-white/70 hover:text-white hover:bg-red-500/20 gap-3 rounded-md"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-4 h-4" /> 
                     Sair do Sistema
                   </Button>
                 </div>

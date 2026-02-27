@@ -1,0 +1,71 @@
+ <svg id="darkSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 240" width="100%" height="100%">
+                        <defs>
+                            <style>
+                                /* CSS Animations nativas no SVG */
+                                .draw { stroke-dasharray: 100; stroke-dashoffset: 100; animation: animDraw 1.2s ease-out forwards; }
+                                .draw-d1 { animation-delay: 0.4s; }
+                                .draw-d2 { animation-delay: 0.8s; }
+                                .draw-d3 { animation-delay: 1.2s; }
+                                @keyframes animDraw { to { stroke-dashoffset: 0; } }
+                                
+                                .fade-in { opacity: 0; animation: animFadeIn 0.6s ease-out forwards; }
+                                .fade-d1 { animation-delay: 0.3s; }
+                                .fade-d2 { animation-delay: 0.9s; }
+                                @keyframes animFadeIn { to { opacity: 1; } }
+                                
+                                .fade-up { opacity: 0; transform: translateY(10px); animation: animFadeUp 0.8s ease-out forwards; }
+                                .up-d1 { animation-delay: 0.5s; }
+                                .up-d2 { animation-delay: 0.7s; }
+                                @keyframes animFadeUp { to { opacity: 1; transform: translateY(0); } }
+                            </style>
+                            <linearGradient id="docEdgeDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#38BDF8"/>
+                                <stop offset="100%" stop-color="#818CF8"/>
+                            </linearGradient>
+                            <linearGradient id="successGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#34D399"/>
+                                <stop offset="100%" stop-color="#10B981"/>
+                            </linearGradient>
+                            <clipPath id="docClipDark">
+                                <path d="M 40,48 A 8,8 0 0,1 48,40 L 110,40 L 150,80 L 150,180 A 8,8 0 0,1 142,188 L 48,188 A 8,8 0 0,1 40,180 Z" />
+                            </clipPath>
+                            <pattern id="dotsDark" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+                                <circle cx="2" cy="2" r="1.5" fill="#334155" />
+                            </pattern>
+                        </defs>
+              
+                        <!-- Divisor Corporativo -->
+                        <line class="fade-in" x1="190" y1="50" x2="190" y2="190" stroke="#334155" stroke-width="2" stroke-linecap="round" />
+              
+                        <!-- Ícone -->
+                        <g>
+                            <!-- Fundo do Documento -->
+                            <path class="fade-in fade-d1" d="M 40,48 A 8,8 0 0,1 48,40 L 110,40 L 150,80 L 150,180 A 8,8 0 0,1 142,188 L 48,188 A 8,8 0 0,1 40,180 Z" fill="#0B1121" />
+                            <rect class="fade-in fade-d1" x="30" y="30" width="130" height="170" fill="url(#dotsDark)" clip-path="url(#docClipDark)" />
+              
+                            <path class="draw" pathLength="100" d="M 40,48 A 8,8 0 0,1 48,40 L 110,40 L 150,80 L 150,180 A 8,8 0 0,1 142,188 L 48,188 A 8,8 0 0,1 40,180 Z" fill="none" stroke="url(#docEdgeDark)" stroke-width="8" stroke-linejoin="round" />
+                            <path class="draw" pathLength="100" d="M 110,40 L 110,72 A 8,8 0 0,0 118,80 L 150,80" fill="none" stroke="url(#docEdgeDark)" stroke-width="8" stroke-linejoin="round" />
+              
+                            <!-- Letra 'S' abstrata -->
+                            <path class="draw draw-d1" pathLength="100" d="M 95,100 L 75,100 A 10,10 0 0,0 65,110 L 65,115 A 10,10 0 0,0 75,125 L 85,125 A 10,10 0 0,1 95,135 L 95,140 A 10,10 0 0,1 85,150 L 65,150" fill="none" stroke="#94A3B8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+              
+                            <!-- Badge de Verificação forming 'C' -->
+                            <circle class="fade-in fade-d2" cx="115" cy="155" r="16" fill="#0B1121" />
+                            <path class="draw draw-d2" pathLength="100" d="M 126.3,143.7 A 16,16 0 1,0 126.3,166.3" fill="none" stroke="url(#successGradDark)" stroke-width="5" stroke-linecap="round" />
+                            <path class="draw draw-d3" pathLength="100" d="M 105,155 L 112,162 L 128,142" fill="none" stroke="url(#successGradDark)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+              
+                            <!-- Nós de Rede -->
+                            <circle class="fade-in fade-d1" cx="110" cy="40" r="5" fill="#0B1121" stroke="url(#docEdgeDark)" stroke-width="3" />
+                            <circle class="fade-in fade-d1" cx="150" cy="80" r="5" fill="#0B1121" stroke="url(#docEdgeDark)" stroke-width="3" />
+                            <circle class="fade-in fade-d2" cx="110" cy="80" r="4" fill="#38BDF8" />
+                            <circle class="fade-in fade-d1" cx="48" cy="40" r="5" fill="#0B1121" stroke="url(#docEdgeDark)" stroke-width="3" />
+                            <circle class="fade-in fade-d1" cx="40" cy="180" r="5" fill="#0B1121" stroke="url(#docEdgeDark)" stroke-width="3" />
+                            <circle class="fade-in fade-d1" cx="142" cy="188" r="5" fill="#0B1121" stroke="url(#docEdgeDark)" stroke-width="3" />
+                        </g>
+              
+                        <!-- Tipografia -->
+                        <g>
+                            <text class="fade-up up-d1" x="220" y="125" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="84" fill="#F8FAFC" letter-spacing="-2">SECTI</text>
+                            <text class="fade-up up-d2" x="225" y="165" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="600" font-size="24" fill="#38BDF8" letter-spacing="10">CONTRATOS</text>
+                        </g>
+                    </svg>
