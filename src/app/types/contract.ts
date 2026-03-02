@@ -20,6 +20,27 @@ export interface Apostila {
   timestamp: string;
   user?: string;
   note: string;
+  /** Valor financeiro agregado pela apostila. Pode ser positivo (incremento) ou negativo (dedução). */
+  ajuste?: number;
+}
+
+export interface Comment {
+  id: string;
+  timestamp: string;
+  user: string;
+  userEmail: string;
+  content: string;
+  type?: 'comment' | 'approval' | 'rejection';
+}
+
+export interface Document {
+  id: string;
+  name: string;
+  type: string; // MIME type
+  url: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  size: number;
 }
 
 export interface Contract {
@@ -45,6 +66,8 @@ export interface Contract {
   // campo legado mantido por compatibilidade, mas a nova estrutura é um array
   apostila?: string;
   apostilas?: Apostila[];
+  /** cached number of apostilas, kept in the root document to avoid querying a subcollection */
+  apostilasCount?: number;
   garantia?: string;
 
   /** lista de e-mails de quem alterou o contrato em algum momento */
@@ -58,6 +81,16 @@ export interface Contract {
   termoAdesao?: string;
 
   history?: HistoryEntry[];
+  
+  // novos campos
+  comments?: Comment[];
+  documents?: Document[];
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  verifiedAt?: string;
+  verifiedBy?: string;
+
+  /** lista de uids que dispensaram ou leram notificações sobre este contrato */
+  readBy?: string[];
 }
 
 export type StatusType = 'critical' | 'warning' | 'safe' | 'expired';

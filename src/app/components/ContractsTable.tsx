@@ -39,7 +39,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
 
   return (
     <div className="bg-white rounded-lg border border-secti-border overflow-hidden shadow-sm flex flex-col">
-      
+
       {/* Header section - Responsive */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 lg:px-6 border-b border-gray-100 bg-gray-50/50 gap-4">
         <div className="flex items-center gap-3">
@@ -81,7 +81,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                   </div>
                   <div className="font-mono text-sm font-bold text-[#0B2046] flex items-center gap-1">
                     {contract.numeroContrato || contract.numeroConvenio || '-'}
-                    {contract.apostilas && contract.apostilas.length > 0 && (
+                    {((contract.apostilas && contract.apostilas.length > 0) || (contract.apostilasCount && contract.apostilasCount > 0)) && (
                       <FilePlus className="w-4 h-4 text-purple-500" aria-hidden="true" />
                     )}
                   </div>
@@ -116,7 +116,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                 <div className="flex flex-col gap-0.5 text-right items-end">
                   <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Vigência / Saldo</span>
                   <span className="font-mono text-xs font-medium text-gray-700">{formatDate(contract.vigenciaAtual)}</span>
-                  <span className="font-mono text-xs font-bold text-[#0B2046]">{formatCurrency(contract.saldoDisponivel)}</span>
+                  <span className="font-mono text-xs font-bold text-[#0B2046] truncate max-w-[120px]">{formatCurrency(contract.saldoDisponivel)}</span>
                 </div>
               </div>
 
@@ -178,26 +178,26 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
               )}
 
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Nº Contrato</TableHead>
-              
+
               {!hasConvenios && (
                 <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 min-w-[250px]">Empresa / Objeto</TableHead>
               )}
-              
+
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11">Gestor / Fiscal</TableHead>
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Vigência Atual</TableHead>
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Saldo & Garantia</TableHead>
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 text-right pr-6">Ações</TableHead>
             </TableRow>
           </TableHeader>
-          
+
           <TableBody>
             {contracts.map((contract, idx) => {
               const status = getContractStatus(contract);
               const isConvenio = contract.tipoRegistro === 'convenio';
-              
+
               return (
-                <TableRow 
-                  key={contract.id} 
+                <TableRow
+                  key={contract.id}
                   className="bg-white hover:bg-blue-50/40 transition-colors border-b border-gray-100 last:border-0 cursor-pointer group"
                   onClick={() => onView?.(contract)}
                 >
@@ -211,7 +211,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                       {status.label}
                     </Badge>
                   </TableCell>
-                  
+
                   <TableCell className="py-3">
                     <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50 px-2 py-1 rounded w-fit border border-gray-100">
                       {isConvenio ? <Handshake className="w-3.5 h-3.5 text-indigo-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
@@ -283,7 +283,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
 
                   <TableCell className="py-3">
                     <div className="flex flex-col">
-                      <p className="font-mono text-sm font-bold text-[#0B2046]">
+                      <p className="font-mono text-sm font-bold text-[#0B2046] truncate max-w-[140px]">
                         {formatCurrency(contract.saldoDisponivel)}
                       </p>
                       {contract.garantia && (

@@ -2,28 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { CurrencyInput } from './ui/currency-input';
 import { Contract, Apostila } from '../types/contract';
 import { FilePlus } from 'lucide-react';
-import { formatDate } from '../utils/contract-helpers';
+import { formatDate, formatCurrency } from '../utils/contract-helpers';
 
 interface ApostilaModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
-  onSave: (contractId: string, note: string) => void;
+  /**
+   * callback when user saves an apostila
+   * @param contractId id of the contract
+   * @param note descriptive text
+   * @param ajuste numeric adjustment (positive or negative)
+   */
+  onSave: (contractId: string, note: string, ajuste?: number) => void;
 }
 
 export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaModalProps) {
   const [text, setText] = useState('');
+  const [ajuste, setAjuste] = useState<number>(0);
 
   useEffect(() => {
-    if (!isOpen) setText('');
+    if (!isOpen) {
+      setText('');
+      setAjuste(0);
+    }
   }, [isOpen, contract]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (contract && text.trim()) {
-      onSave(contract.id, text.trim());
+      onSave(contract.id, text.trim(), ajuste);
       onClose();
     }
   };
@@ -50,6 +61,11 @@ export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaMod
                   {contract.apostilas.map((a: Apostila, idx: number) => (
                     <li key={idx}>
                       <span className="font-mono">{formatDate(a.timestamp)}</span> – {a.note}
+                      {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
+                        <span className="ml-1 font-mono text-xs text-gray-500">
+                          ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -63,6 +79,20 @@ export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaMod
                 onChange={(e) => setText(e.target.value)}
                 className="bg-gray-50 border-secti-border min-h-[120px] resize-none"
                 placeholder="Descreva a mudança que está sendo registrada como apostila..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-secti-muted">
+                Ajuste do valor do contrato (positivo para acréscimo, negativo para dedução)
+              </label>
+              <p className="text-[11px] text-gray-500">
+                Deduções representam pagamentos: abaixam o valor atual e <strong>aumentam</strong> o pago acumulado.
+              </p>
+              <CurrencyInput
+                className="bg-gray-50 border-secti-border font-mono"
+                value={ajuste}
+                onValueChange={(num) => setAjuste(num)}
+                placeholder="0,00"
               />
             </div>
           </div>

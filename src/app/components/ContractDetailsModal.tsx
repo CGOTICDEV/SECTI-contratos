@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { formatDate, formatCurrency } from '../utils/contract-helpers';
-import { Contract, HistoryEntry, HistoryChange } from '../types/contract';
+import { Contract, HistoryEntry, HistoryChange, Apostila } from '../types/contract';
 import { 
   FileSearch, 
   FilePlus,
@@ -61,16 +61,42 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
   // cache of user photos keyed by normalized email
   const [userPhotos, setUserPhotos] = useState<Record<string,string>>({});
 
+  // if we've migrated to subcollections the arrays on the document will be
+  // empty; load the separate collections so we can display the full history
+  const [remoteHistory, setRemoteHistory] = useState<HistoryEntry[]>([]);
+  const [remoteApostilas, setRemoteApostilas] = useState<Apostila[]>([]);
+
+  useEffect(() => {
+    if (!isOpen || !contract?.id) return;
+    async function loadSubs() {
+      try {
+        const histSnap = await getDocs(collection(db, 'contracts', contract.id, 'history'));
+        setRemoteHistory(histSnap.docs.map((d) => d.data() as HistoryEntry));
+      } catch (e) {
+        // ignore missing collection / permission errors
+      }
+      try {
+        const apSnap = await getDocs(collection(db, 'contracts', contract.id, 'apostilas'));
+        setRemoteApostilas(apSnap.docs.map((d) => d.data() as Apostila));
+      } catch (e) {}
+    }
+    loadSubs();
+  }, [isOpen, contract.id]);
+
   // whenever the contract history changes we want to pre‑fetch the avatars for the
   // users involved.  the logic will batch the email lookups to avoid Firestore's
   // 10-element `in` query limit and store results in `userPhotos`.
   useEffect(() => {
     async function loadPhotos() {
-      if (!contract.history || contract.history.length === 0) return;
+      // combine inline history with any documents pulled from the subcollection
+      const entries: HistoryEntry[] = [];
+      if (contract.history) entries.push(...contract.history);
+      if (remoteHistory) entries.push(...remoteHistory);
+      if (entries.length === 0) return;
 
       const emailCandidates: string[] = [];
       const uidCandidates: string[] = [];
-      contract.history.forEach((e) => {
+      entries.forEach((e) => {
         const u = e.user?.toString();
         if (!u) return;
         if (u.includes('@')) {
@@ -138,7 +164,11 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
   };
 
   const renderHistory = () => {
-    if (!contract.history || contract.history.length === 0) {
+    // merge inline array with remote collection entries; use latest first
+    const allHistory: HistoryEntry[] = [];
+    if (contract.history) allHistory.push(...contract.history);
+    if (remoteHistory) allHistory.push(...remoteHistory);
+    if (allHistory.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center bg-white rounded-lg border border-dashed border-gray-300">
           <History className="w-8 h-8 text-gray-300 mb-2" />
@@ -149,7 +179,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
 
     return (
       <div className="relative border-l-2 border-gray-200 ml-3 pl-5 space-y-6 py-2">
-        {contract.history
+        {allHistory
           .slice()
           .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
           .map((entry: HistoryEntry, idx: number) => {
@@ -222,14 +252,14 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                             </strong>
                             <div className="flex items-center gap-3 text-gray-600 flex-1 overflow-hidden">
                               <span 
-                                className="line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded" 
+                                className="line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded truncate max-w-[120px]" 
                                 title={String(chg.before) || 'Vazio'}
                               >
                                 {String(chg.before) || 'Vazio'}
                               </span>
                               <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
                               <span 
-                                className="truncate font-medium text-green-700 bg-green-50 px-1.5 rounded" 
+                                className="truncate font-medium text-green-700 bg-green-50 px-1.5 rounded max-w-[120px]" 
                                 title={String(chg.after)}
                               >
                                 {String(chg.after)}
@@ -358,7 +388,13 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                           <li key={idx} className="text-sm">
                             <span className="font-mono text-xs text-gray-600">
                               {formatDate(a.timestamp)}
-                            </span>{' '}- {a.note} {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
+                            </span>{' '}- {a.note}
+                            {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
+                              <span className="ml-1 font-mono text-xs text-gray-500">
+                                ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                              </span>
+                            )}{' '}
+                            {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
                           </li>
                         ))}
                       </ul>
@@ -375,26 +411,26 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor Inicial</span>
-                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorInicial)}</p>
+                      <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorInicial)}</p>
                     </div>
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Pago em 2025</span>
-                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorPagoAno)}</p>
+                      <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorPagoAno)}</p>
                     </div>
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Pago Acumulado</span>
-                      <p className="font-mono text-sm text-gray-800">{formatCurrency(contract.valorPagoAcumulado)}</p>
+                      <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorPagoAcumulado)}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor Atual do Contrato</span>
-                      <p className="font-mono text-base font-semibold text-gray-900">{formatCurrency(contract.valorAtual)}</p>
+                      <p className="font-mono text-base font-semibold text-gray-900 truncate max-w-[220px]">{formatCurrency(contract.valorAtual)}</p>
                     </div>
                     <div className="space-y-1 bg-green-50 p-3 rounded-md border border-green-200">
                       <span className="text-[11px] font-bold uppercase text-green-800 tracking-wider">Saldo Disponível</span>
-                      <p className="font-mono text-lg font-bold text-green-700">{formatCurrency(contract.saldoDisponivel)}</p>
+                      <p className="font-mono text-lg font-bold text-green-700 truncate max-w-[220px]">{formatCurrency(contract.saldoDisponivel)}</p>
                     </div>
                   </div>
                 </div>

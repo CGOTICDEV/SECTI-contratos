@@ -155,7 +155,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
                   <FileText className="text-primary h-5 w-5" />
                   <h4 className="font-semibold text-foreground">Apostilas (CCC)</h4>
                 </div>
-                <p className="text-sm text-muted-foreground">Consulta livre. Clique no ícone de apostila para registrar notas internas, visíveis no histórico.</p>
+                <p className="text-sm text-muted-foreground">Consulta livre. Clique no ícone de apostila para registrar notas internas (com opção de ajustar o valor do contrato), visíveis no histórico.</p>
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -179,7 +179,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
               <div>
                 <h4 className="font-semibold text-foreground mb-1">Dicas Finais</h4>
                 <p className="text-sm text-muted-foreground">
-                  Use sempre o e-mail institucional verificado e mantenha sua foto atualizada, pois ela aparece nos logs de histórico de alterações. Em caso de dúvidas, contate a administração.
+                  Use sempre o e-mail institucional verificado e mantenha sua foto atualizada, pois ela aparece nos logs de histórico de alterações. 
                 </p>
               </div>
             </div>

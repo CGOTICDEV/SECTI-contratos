@@ -105,6 +105,12 @@ export function computeChanges(
   const base = before || ({} as Contract);
 
   for (const key of Object.keys(after) as (keyof Contract)[]) {
+    // avoid dumping large or self‑referential arrays into history; they
+    // are stored elsewhere and/or trimmed by other logic.  If we record
+    // every apostila or the whole history we blow past Firestore's 1 MB
+    // document limit very quickly.
+    if (key === 'apostilas' || key === 'history') continue;
+
     const oldVal = (base as any)[key];
     const newVal = (after as any)[key];
     if (newVal === undefined) continue;

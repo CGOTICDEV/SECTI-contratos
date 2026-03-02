@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   User,
   HelpCircle,
+  BarChart3,
+  Bell,
 } from 'lucide-react';
 // KPI cards were replaced by a tabbed filter control
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -21,6 +23,12 @@ import { ApostilaModal } from './components/ApostilaModal';
 import { Login } from './components/Login';
 import { ProfilePage } from './components/ProfilePage';
 import { TutorialModal } from './components/TutorialModal';
+import { NotificationCenter } from './components/NotificationCenter';
+import { Dashboard } from './components/Dashboard';
+import { AdvancedFiltersPanel, AdvancedFilters } from './components/AdvancedFilters';
+import { BulkActions } from './components/BulkActions';
+import { SessionManager } from './components/SessionManager';
+import { HelpPanel } from './components/HelpSystem';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import {
@@ -64,16 +72,21 @@ import {
 } from 'firebase/firestore';
 
 type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
+type ViewMode = 'dashboard' | 'charts' | 'profile';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const creatingUserRef = useRef(false);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<ViewMode>('dashboard');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({});
+  const [selectedContractIds, setSelectedContractIds] = useState<Set<string>>(new Set());
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  
   // the tabs component uses string values matching the FilterType union
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | undefined>();
@@ -198,6 +211,56 @@ function App() {
       });
     }
 
+    // Filtros avançados
+    if (advancedFilters.tipoRegistro && advancedFilters.tipoRegistro !== 'todos') {
+      filtered = filtered.filter(c => c.tipoRegistro === advancedFilters.tipoRegistro);
+    }
+
+    if (advancedFilters.situacao && advancedFilters.situacao !== 'todos') {
+      filtered = filtered.filter(c => c.situacao === advancedFilters.situacao);
+    }
+
+    if (advancedFilters.gestor) {
+      filtered = filtered.filter(c => 
+        c.gestor?.toLowerCase().includes(advancedFilters.gestor!.toLowerCase())
+      );
+    }
+
+    if (advancedFilters.fiscal) {
+      filtered = filtered.filter(c => 
+        c.fiscal?.toLowerCase().includes(advancedFilters.fiscal!.toLowerCase())
+      );
+    }
+
+    if (advancedFilters.empresa || advancedFilters.convenente) {
+      const termo = (advancedFilters.empresa || advancedFilters.convenente || '').toLowerCase();
+      filtered = filtered.filter(c => 
+        c.empresa?.toLowerCase().includes(termo) || c.convenente?.toLowerCase().includes(termo)
+      );
+    }
+
+    if (advancedFilters.valorMin !== undefined) {
+      filtered = filtered.filter(c => (c.valorAtual || 0) >= advancedFilters.valorMin!);
+    }
+
+    if (advancedFilters.valorMax !== undefined) {
+      filtered = filtered.filter(c => (c.valorAtual || 0) <= advancedFilters.valorMax!);
+    }
+
+    if (advancedFilters.diasVencimentoMin !== undefined || advancedFilters.diasVencimentoMax !== undefined) {
+      filtered = filtered.filter(c => {
+        const status = getContractStatus(c);
+        const days = status.daysRemaining;
+        if (advancedFilters.diasVencimentoMin !== undefined && days < advancedFilters.diasVencimentoMin) {
+          return false;
+        }
+        if (advancedFilters.diasVencimentoMax !== undefined && days > advancedFilters.diasVencimentoMax) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -216,7 +279,24 @@ function App() {
     }
 
     return filtered;
-  }, [contracts, activeFilter, searchQuery]);
+  }, [contracts, activeFilter, searchQuery, advancedFilters]);
+
+  // Extrair gestores e fiscais únicos para os filtros
+  const uniqueGestores = useMemo(() => {
+    const set = new Set<string>();
+    contracts.forEach(c => {
+      if (c.gestor) set.add(c.gestor);
+    });
+    return Array.from(set).sort();
+  }, [contracts]);
+
+  const uniqueFiscais = useMemo(() => {
+    const set = new Set<string>();
+    contracts.forEach(c => {
+      if (c.fiscal) set.add(c.fiscal);
+    });
+    return Array.from(set).sort();
+  }, [contracts]);
 
   const handleSaveContract = async (contractData: Partial<Contract>) => {
     try {
@@ -246,18 +326,24 @@ function App() {
             // do not save photo on each entry any more
             changes,
           };
+          // build bounded history array rather than arrayUnion so we can trim
+          let historyToWrite: any = entry;
+          if (editingContract.history) {
+            const harr = [...editingContract.history, entry];
+            historyToWrite = harr.slice(-MAX_HISTORY_ENTRIES);
+          }
           await updateDoc(ref, {
             ...contractData,
             // also store the modified editor list
             ...(after.emailEditor ? { emailEditor: after.emailEditor } : {}),
-            history: arrayUnion(entry),
+            history: historyToWrite,
           } as any);
           toast.success('Sincronização concluída: Registro atualizado.');
         } else {
           toast.info('Nenhuma alteração detectada.');
         }
       } else {
-        const newContract: any = { ...contractData, history: [] };
+        const newContract: any = { ...contractData, history: [], apostilasCount: 0 };
         if (userProfile) {
           const nameOrEmail = userProfile.displayName || userProfile.email;
           if (userProfile.role === 'gestor') newContract.gestor = nameOrEmail;
@@ -294,7 +380,11 @@ function App() {
     setIsApostilaOpen(true);
   };
 
-  const handleSaveApostila = async (id: string, note: string) => {
+  // keep arrays trimmed so the document remains under Firestore's 1 MB limit
+  const MAX_HISTORY_ENTRIES = 300;
+  const MAX_APOSTILAS = 200;
+
+  const handleSaveApostila = async (id: string, note: string, ajuste: number = 0) => {
     try {
       if (!apostilaContract) return;
       const ref = doc(db, 'contracts', id);
@@ -302,22 +392,70 @@ function App() {
       const newEntry: any = {
         timestamp: new Date().toISOString(),
         user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
-        // apostila entries still keep user but not photo
         note,
       };
+      if (ajuste && ajuste !== 0) {
+        newEntry.ajuste = ajuste;
+      }
+
+      // apply adjustment to contract values
+      const novoValorAtual = (current.valorAtual || 0) + (ajuste || 0);
+
+      // interpret negative adjustment as a deduction / payment made on the
+      // contract: we decrease the available value and increase the paid total.
+      let novoValorPagoAcumulado = current.valorPagoAcumulado || 0;
+      if (ajuste < 0) {
+        novoValorPagoAcumulado += -ajuste;
+      }
+      // positive adjustments do not affect paid amount
+
+      const novoSaldo = novoValorAtual - novoValorPagoAcumulado;
+
+      // build new apostilas list and trim if necessary
+      let newApostilas = [...(current.apostilas || []), newEntry];
+      if (newApostilas.length > MAX_APOSTILAS) {
+        newApostilas = newApostilas.slice(-MAX_APOSTILAS);
+      }
+
       const updated: Contract = {
         ...current,
-        apostilas: [...(current.apostilas || []), newEntry],
+        valorAtual: novoValorAtual,
+        valorPagoAcumulado: novoValorPagoAcumulado,
+        saldoDisponivel: novoSaldo,
+        apostilas: newApostilas,
       };
+
+      // compute minimal change log; computeChanges now ignores apostilas/history
       const changes = computeChanges(current, updated);
+
+      // we still want to note that an apostila was added so auditors can see counts
+      changes.push({
+        field: 'apostilas',
+        before: current.apostilas ? current.apostilas.length : 0,
+        after: newApostilas.length,
+      });
+
       const historyEntry: any = {
         timestamp: new Date().toISOString(),
         user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
         changes,
       };
+
+      // when appending history we can't trim with arrayUnion; read existing history
+      // then replace whole field so we can keep it bounded
+      let historyToWrite: any = historyEntry;
+      if (current.history) {
+        const arr = [...current.history, historyEntry];
+        historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
+      }
+
       await updateDoc(ref, {
-        apostilas: updated.apostilas,
-        history: arrayUnion(historyEntry),
+        valorAtual: updated.valorAtual,
+        valorPagoAcumulado: updated.valorPagoAcumulado,
+        saldoDisponivel: updated.saldoDisponivel,
+        apostilas: newApostilas,
+        apostilasCount: newApostilas.length,
+        history: historyToWrite,
       } as any);
       toast.success('Apostila registrada com sucesso.');
     } catch (err) {
@@ -468,6 +606,30 @@ function App() {
     }
   };
 
+  // Handlers para seleção em lote
+  const handleSelectionChange = (id: string, selected: boolean) => {
+    setSelectedContractIds(prev => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(id);
+      } else {
+        newSet.delete(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkExport = async () => {
+    const selectedContracts = contracts.filter(c => selectedContractIds.has(c.id));
+    const { exportContractsToExcel } = await import('./utils/excel');
+    exportContractsToExcel(selectedContracts);
+    toast.success(`${selectedContracts.length} contratos exportados!`);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedContractIds(new Set());
+  };
+
   // Helper para nome no Header
   const firstName = userProfile?.displayName?.split(' ')[0] || 'Usuário';
 
@@ -514,7 +676,27 @@ function App() {
                           }`}
                         >
                           <LayoutDashboard className={`w-5 h-5 ${currentPage === 'dashboard' ? 'text-[#00D1FF]' : 'text-white/70'}`} />
-                          <span>Painel Geral</span>
+                          <span className="flex items-center justify-between flex-1">
+                            Painel Geral
+                            {kpis.less15 > 0 && (
+                              <Badge className="bg-red-600 text-white ml-2">{kpis.less15}</Badge>
+                            )}
+                          </span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+
+                      {/* Item: Gráficos */}
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={() => setCurrentPage('charts')}
+                          className={`px-4 sm:px-6 h-12 transition-all text-white gap-3 rounded-none border-l-4 ${
+                            currentPage === 'charts' 
+                              ? 'bg-[#0056B3]/40 border-[#00D1FF] font-semibold' 
+                              : 'border-transparent hover:bg-white/5 font-medium'
+                          }`}
+                        >
+                          <BarChart3 className={`w-5 h-5 ${currentPage === 'charts' ? 'text-[#00D1FF]' : 'text-white/70'}`} />
+                          <span>Dashboard Visual</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
 
@@ -575,9 +757,23 @@ function App() {
 
             {/* MAIN CONTENT */}
             <main className="flex-1 overflow-y-auto flex flex-col w-full relative">
+              {/* Session Manager */}
+              <SessionManager 
+                inactivityTimeout={30}
+                warningTime={60}
+                onSessionExpired={() => setIsAuthenticated(false)}
+              />
+
+              {/* Help Panel */}
+              <HelpPanel isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
               {currentPage === 'profile' ? (
                 <div className="animate-in fade-in duration-300 h-full">
                   <ProfilePage profile={userProfile} onBackToDashboard={() => setCurrentPage('dashboard')} />
+                </div>
+              ) : currentPage === 'charts' ? (
+                <div className="animate-in fade-in duration-300 h-full">
+                  <Dashboard contracts={contracts} />
                 </div>
               ) : (
                 <div className="flex flex-col min-h-full animate-in fade-in duration-300">
@@ -591,28 +787,51 @@ function App() {
                         <p className="text-[10px] sm:text-xs text-gray-500 font-medium mt-0.5">Gestão unificada de contratos e convênios</p>
                       </div>
                     </div>
-                    {userProfile && (
-                      <div
-                        className="flex items-center gap-2 bg-gray-50 px-2 sm:px-3 py-1.5 rounded-full border border-gray-100 cursor-pointer"
-                        role="button"
-                        onClick={() => setCurrentPage('profile')}
+                    <div className="flex items-center gap-2">
+                      {/* Notificações */}
+                      <NotificationCenter 
+                        contracts={contracts}
+                        currentUserUid={userProfile?.uid}
+                        onContractClick={(contract) => {
+                          setViewingContract(contract);
+                          setIsDetailsOpen(true);
+                        }}
+                      />
+
+                      {/* Ajuda */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsHelpOpen(true)}
+                        className="hover:bg-gray-100"
+                        aria-label="Ajuda"
                       >
-                        <span className="hidden sm:inline text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden flex items-center justify-center bg-[#00D1FF]/20">
-                          {userProfile.photoBase64 ? (
-                            <img
-                              src={userProfile.photoBase64}
-                              alt="avatar"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-[#0B2046] text-[10px] sm:text-xs font-bold">
-                              {firstName.charAt(0).toUpperCase()}
-                            </span>
-                          )}
+                        <HelpCircle className="w-5 h-5" />
+                      </Button>
+
+                      {userProfile && (
+                        <div
+                          className="flex items-center gap-2 bg-gray-50 px-2 sm:px-3 py-1.5 rounded-full border border-gray-100 cursor-pointer"
+                          role="button"
+                          onClick={() => setCurrentPage('profile')}
+                        >
+                          <span className="hidden sm:inline text-sm text-gray-600">Olá, <strong className="text-[#0B2046]">{firstName}</strong></span>
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden flex items-center justify-center bg-[#00D1FF]/20">
+                            {userProfile.photoBase64 ? (
+                              <img
+                                src={userProfile.photoBase64}
+                                alt="avatar"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[#0B2046] text-[10px] sm:text-xs font-bold">
+                                {firstName.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </header>
 
                   {/* DASHBOARD BODY */}
@@ -668,6 +887,12 @@ function App() {
                           className="pl-10 h-11 w-full border-gray-200 bg-gray-50 focus:bg-white focus:ring-1 focus:ring-[#00D1FF] transition-colors rounded-md text-sm"
                         />
                       </div>
+                      <AdvancedFiltersPanel
+                        filters={advancedFilters}
+                        onFiltersChange={setAdvancedFilters}
+                        gestores={uniqueGestores}
+                        fiscais={uniqueFiscais}
+                      />
                     </div>
 
                     {/* TABLE AREA */}
@@ -688,6 +913,13 @@ function App() {
                         />
                       </div>
                     </div>
+
+                    {/* Bulk Actions */}
+                    <BulkActions
+                      selectedCount={selectedContractIds.size}
+                      onExport={handleBulkExport}
+                      onClearSelection={handleClearSelection}
+                    />
                   </div>
                 </div>
               )}

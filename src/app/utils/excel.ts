@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 import { Contract } from '../types/contract';
+import { db } from '../../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 type ColMeta = {
     key: keyof Contract | string;
@@ -36,6 +38,20 @@ export async function exportContractsToExcel(
     fileName = 'relatorio-contratos.xlsx'
 ) {
     if (!contracts || contracts.length === 0) return;
+
+    // if arrays have been migrated to subcollections we may need to fetch missing
+    // apostilas for accurate export. operations run sequentially but the list is
+    // usually short enough.
+    for (const c of contracts) {
+        if ((c.apostilasCount && c.apostilasCount > 0) && (!c.apostilas || c.apostilas.length === 0)) {
+            try {
+                const snap = await getDocs(collection(db, 'contracts', c.id, 'apostilas'));
+                c.apostilas = snap.docs.map((d) => d.data() as any);
+            } catch {
+                // ignore, export will just have empty value
+            }
+        }
+    }
 
     const cols: ColMeta[] = [
         { key: 'situacao', header: 'Status', type: 's', width: 14 },
@@ -119,7 +135,16 @@ export async function exportContractsToExcel(
                     return c.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato';
                 case 'apostilas':
                     return (c as any).apostilas
-                        ? (c as any).apostilas.map((a: any) => a.note).join('; ')
+                        ? (c as any).apostilas
+                              .map((a: any) => {
+                                  let txt = a.note || '';
+                                  if (typeof a.ajuste === 'number' && a.ajuste !== 0) {
+                                      const sign = a.ajuste >= 0 ? '+' : '';
+                                      txt += ` (${sign}R$ ${Math.abs(a.ajuste).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+                                  }
+                                  return txt;
+                              })
+                              .join('; ')
                         : '';
                 default:
                     return (c as any)[col.key] ?? '';

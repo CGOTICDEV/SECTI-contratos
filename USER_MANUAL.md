@@ -141,10 +141,10 @@ Ao salvar, o sistema calcula as diferenças e grava um registro de histórico. S
 Usuários do perfil CCC podem:
 
 - Consultar contratos livremente.
-- Ao clicar no ícone de apostila em uma linha, abrir uma janela para digitar uma nota.
-- Ver as apostilas anteriores nessa mesma janela.
+- Ao clicar no ícone de apostila em uma linha, abrir uma janela para digitar uma nota e, se for o caso, um valor de ajuste (positivos somam, negativos subtraem) que atualiza o valor atual do contrato.
+- Ver as apostilas anteriores nessa mesma janela, com indicação do valor ajustado.
 
-As anotações ficam visíveis no detalhe do contrato e são incluídas no histórico.
+As anotações e ajustes ficam visíveis no detalhe do contrato e são incluídos no histórico.
 
 ---
 

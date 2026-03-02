@@ -327,6 +327,11 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
                         {formData.apostilas.map((a, idx) => (
                           <li key={idx}>
                             <span className="font-mono text-xs">{formatDate(a.timestamp)}</span> – {a.note}
+                            {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
+                              <span className="ml-1 font-mono text-xs text-gray-500">
+                                ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
