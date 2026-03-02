@@ -99,6 +99,7 @@ export async function exportContractsToExcel(
         { key: 'garantia', header: 'Garantia', type: 's', width: 20 },
         { key: 'ultimoTermoAditivo', header: 'Último Termo', type: 's', width: 20 },
         { key: 'termoAdesao', header: 'Termo de Adesão', type: 's', width: 20 },
+        { key: 'termosAditivos', header: 'Termos Aditivos', type: 's', width: 40 },
         { key: 'apostilas', header: 'Apostilas', type: 's', width: 40 }
     ];
 
@@ -133,7 +134,21 @@ export async function exportContractsToExcel(
                     return c.vigenciaAtual ? new Date(c.vigenciaAtual) : '';
                 case 'tipoRegistro':
                     return c.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato';
-                case 'apostilas':
+                case 'termosAditivos':
+                    return (c as any).termosAditivos
+                        ? (c as any).termosAditivos
+                              .map((a: any) => {
+                                  let txt = a.note || '';
+                                  if (typeof a.ajuste === 'number' && a.ajuste !== 0) {
+                                      txt += ` (${a.ajuste >= 0 ? '+' : ''}${a.ajuste})`;
+                                  }
+                                  if (a.vigenciaInicial || a.prorrogacao) {
+                                      txt += ` [${a.vigenciaInicial || '?'}→${a.prorrogacao || '?'}]`;
+                                  }
+                                  return txt;
+                              })
+                              .join(' | ')
+                        : '';                case 'apostilas':
                     return (c as any).apostilas
                         ? (c as any).apostilas
                               .map((a: any) => {

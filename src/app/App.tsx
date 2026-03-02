@@ -20,6 +20,7 @@ import { ContractsTable } from './components/ContractsTable';
 import { ContractModal } from './components/ContractModal';
 import { ContractDetailsModal } from './components/ContractDetailsModal';
 import { ApostilaModal } from './components/ApostilaModal';
+import { TermoAditivoModal } from './components/TermoAditivoModal';
 import { Login } from './components/Login';
 import { ProfilePage } from './components/ProfilePage';
 import { TutorialModal } from './components/TutorialModal';
@@ -380,6 +381,15 @@ function App() {
     setIsApostilaOpen(true);
   };
 
+  // new: support termoaditivo modal
+  const [isTermoAditivoOpen, setIsTermoAditivoOpen] = useState(false);
+  const [termoAditivoContract, setTermoAditivoContract] = useState<Contract | null>(null);
+
+  const handleAddTermoAditivoClick = (c: Contract) => {
+    setTermoAditivoContract(c);
+    setIsTermoAditivoOpen(true);
+  };
+
   // keep arrays trimmed so the document remains under Firestore's 1 MB limit
   const MAX_HISTORY_ENTRIES = 300;
   const MAX_APOSTILAS = 200;
@@ -399,17 +409,19 @@ function App() {
       }
 
       // apply adjustment to contract values
-      const novoValorAtual = (current.valorAtual || 0) + (ajuste || 0);
-
-      // interpret negative adjustment as a deduction / payment made on the
-      // contract: we decrease the available value and increase the paid total.
+      // POSITIVE adjustment: increases VALOR ATUAL (term addendum)
+      // NEGATIVE adjustment: increases VALOR PAGO ACUMULADO (payment/deduction)
+      let novoValorAtual = current.valorAtual || 0;
       let novoValorPagoAcumulado = current.valorPagoAcumulado || 0;
-      if (ajuste < 0) {
+
+      if (ajuste > 0) {
+        novoValorAtual += ajuste;
+      } else if (ajuste < 0) {
         novoValorPagoAcumulado += -ajuste;
       }
-      // positive adjustments do not affect paid amount
 
-      const novoSaldo = novoValorAtual - novoValorPagoAcumulado;
+      // round to 2 decimal places to avoid floating-point precision errors
+      const novoSaldo = Math.round((novoValorAtual - novoValorPagoAcumulado) * 100) / 100;
 
       // build new apostilas list and trim if necessary
       let newApostilas = [...(current.apostilas || []), newEntry];
@@ -458,11 +470,100 @@ function App() {
         history: historyToWrite,
       } as any);
       toast.success('Apostila registrada com sucesso.');
+      setApostilaContract(null);
     } catch (err) {
       console.error(err);
       toast.error('Falha ao salvar apostila.');
-    } finally {
-      setApostilaContract(null);
+    }
+  };
+
+  // handler for termo aditivo entries
+  const handleSaveTermoAditivo = async (
+    id: string,
+    note: string,
+    ajuste: number = 0,
+    vigenciaInicial?: string,
+    prorrogacao?: string
+  ) => {
+    try {
+      if (!termoAditivoContract) return;
+      const ref = doc(db, 'contracts', id);
+      const current = termoAditivoContract;
+      const newEntry: any = {
+        timestamp: new Date().toISOString(),
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
+        note,
+        originalVigencia: current.vigenciaAtual || undefined,
+      };
+      if (ajuste && ajuste !== 0) {
+        newEntry.ajuste = ajuste;
+      }
+      if (vigenciaInicial) newEntry.vigenciaInicial = vigenciaInicial;
+      if (prorrogacao) newEntry.prorrogacao = prorrogacao;
+
+      // termoaditivo always increases valorAtual
+      let novoValorAtual = current.valorAtual || 0;
+      if (ajuste > 0) {
+        novoValorAtual += ajuste;
+      }
+      const novoSaldo = Math.round((novoValorAtual - (current.valorPagoAcumulado || 0)) * 100) / 100;
+
+      let newTermos = [...(current.termosAditivos || []), newEntry];
+      // we may want to keep list bounded, reuse same MAX_APOSTILAS for simplicity
+      if (newTermos.length > MAX_APOSTILAS) {
+        newTermos = newTermos.slice(-MAX_APOSTILAS);
+      }
+
+      const updated: Contract = {
+        ...current,
+        valorAtual: novoValorAtual,
+        saldoDisponivel: novoSaldo,
+        termosAditivos: newTermos,
+      };
+      if (vigenciaInicial) updated.vigenciaInicial = vigenciaInicial;
+      if (prorrogacao) {
+        updated.vigenciaAtual = prorrogacao; // apply extension to contract itself
+      }
+
+      const changes = computeChanges(current, updated);
+      changes.push({
+        field: 'termosAditivos',
+        before: current.termosAditivos ? current.termosAditivos.length : 0,
+        after: newTermos.length,
+      });
+
+      const historyEntry: any = {
+        timestamp: new Date().toISOString(),
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
+        changes,
+      };
+
+      let historyToWrite: any = historyEntry;
+      if (current.history) {
+        const arr = [...current.history, historyEntry];
+        historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
+      }
+
+      const payload: any = {
+        valorAtual: updated.valorAtual,
+        saldoDisponivel: updated.saldoDisponivel,
+        termosAditivos: updated.termosAditivos,
+        history: historyToWrite,
+      };
+      if (vigenciaInicial) payload.vigenciaInicial = vigenciaInicial;
+      if (prorrogacao) payload.vigenciaAtual = prorrogacao;
+      await updateDoc(ref, payload as any);
+
+      // also update local state so UI reflects change immediately
+      setContracts((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      if (termoAditivoContract && termoAditivoContract.id === id) {
+        setTermoAditivoContract(updated);
+      }
+
+      toast.success('Termo aditivo registrado com sucesso.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao salvar termo aditivo.');
     }
   };
 
@@ -700,8 +801,11 @@ function App() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
 
-                      {/* Item: Novo Registro (somente gestor/fiscal) */}
-                      {(userProfile?.role === 'gestor' || userProfile?.role === 'fiscal') && (
+                      {/* Item: Novo Registro (disponível para todos os perfis, incluindo CCC) */}
+                      {userProfile &&
+                        (userProfile.role === 'gestor' ||
+                          userProfile.role === 'fiscal' ||
+                          userProfile.role === 'ccc') && (
                         <SidebarMenuItem>
                           <SidebarMenuButton
                             onClick={() => { setEditingContract(undefined); setIsModalOpen(true); }}
@@ -902,13 +1006,18 @@ function App() {
                           contracts={filteredContracts}
                           onEdit={
                             userProfile &&
-                            (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                            (userProfile.role === 'gestor' || userProfile.role === 'fiscal' || userProfile.role === 'ccc')
                               ? (c) => { setEditingContract(c); setIsModalOpen(true); }
                               : undefined
                           }
                           onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
                           onAddApostila={
                             userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
+                          }
+                          onAddTermoAditivo={
+                            userProfile && (userProfile.role === 'ccc' || userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                              ? handleAddTermoAditivoClick
+                              : undefined
                           }
                         />
                       </div>
@@ -940,12 +1049,22 @@ function App() {
                     }
                   : undefined
               } 
+              onAddTermoAditivo={
+                userProfile?.role === 'ccc' ? handleAddTermoAditivoClick : undefined
+              }
             />
             <ApostilaModal
               isOpen={isApostilaOpen}
               onClose={() => setIsApostilaOpen(false)}
               contract={apostilaContract}
               onSave={handleSaveApostila}
+            />
+
+            <TermoAditivoModal
+              isOpen={isTermoAditivoOpen}
+              onClose={() => setIsTermoAditivoOpen(false)}
+              contract={termoAditivoContract}
+              onSave={handleSaveTermoAditivo}
             />
 
             {/* tutorial modal for authenticated users */}

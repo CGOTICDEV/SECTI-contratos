@@ -18,9 +18,10 @@ interface ContractsTableProps {
   onEdit?: (contract: Contract) => void;
   onView?: (contract: Contract) => void;
   onAddApostila?: (contract: Contract) => void;
+  onAddTermoAditivo?: (contract: Contract) => void;
 }
 
-export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: ContractsTableProps) {
+export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAddTermoAditivo }: ContractsTableProps) {
   if (contracts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-secti-border shadow-sm">
@@ -83,6 +84,9 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                     {contract.numeroContrato || contract.numeroConvenio || '-'}
                     {((contract.apostilas && contract.apostilas.length > 0) || (contract.apostilasCount && contract.apostilasCount > 0)) && (
                       <FilePlus className="w-4 h-4 text-purple-500" aria-hidden="true" />
+                    )}
+                    {contract.termosAditivos && contract.termosAditivos.length > 0 && (
+                      <Handshake className="w-4 h-4 text-green-500" aria-hidden="true" />
                     )}
                   </div>
                 </div>
@@ -151,6 +155,17 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                   >
                     <FilePlus className="h-4 w-4 mr-1" />
                     Apostila
+                  </Button>
+                )}
+                {onAddTermoAditivo && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onAddTermoAditivo(contract); }}
+                    className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    <Handshake className="h-4 w-4 mr-1" />
+                    Termo
                   </Button>
                 )}
               </div>
@@ -328,6 +343,18 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila }: Con
                         >
                           <FilePlus className="h-4 w-4" />
                           <span className="sr-only">Apostila</span>
+                        </Button>
+                      )}
+                      {onAddTermoAditivo && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); onAddTermoAditivo(contract); }}
+                          className="h-8 w-8 text-gray-500 hover:text-green-600 hover:bg-green-50"
+                          title="Adicionar Termo Aditivo"
+                        >
+                          <Handshake className="h-4 w-4" />
+                          <span className="sr-only">Termo Aditivo</span>
                         </Button>
                       )}
                     </div>

@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Contract } from '../types/contract';
-import { Calendar, DollarSign, Info, FileText, CheckCircle2 } from 'lucide-react';
+import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/contract-helpers';
 
 interface ContractModalProps {
@@ -34,9 +34,10 @@ interface ContractModalProps {
     role?: 'gestor' | 'fiscal';
     displayName?: string;
   };
+  onAddTermoAditivo?: (contract: Contract) => void;
 }
 
-export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }: ContractModalProps) {
+export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, onAddTermoAditivo }: ContractModalProps) {
   const defaultData: Partial<Contract> = {
     tipoRegistro: 'contrato',
     numeroContrato: '',
@@ -100,9 +101,12 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
     const valorAtual = formData.valorAtual ?? 0;
     const pagoAcumulado = formData.valorPagoAcumulado ?? 0;
     
+    // round to 2 decimal places to avoid floating-point precision errors
+    const saldo = Math.round((valorAtual - pagoAcumulado) * 100) / 100;
+    
     setFormData((prev) => ({
       ...prev,
-      saldoDisponivel: valorAtual - pagoAcumulado,
+      saldoDisponivel: saldo,
     }));
   }, [formData.valorAtual, formData.valorPagoAcumulado]);
 
@@ -111,12 +115,22 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
     let payload: Partial<Contract> = { ...formData };
     
     const baseValorAtual = payload.valorAtual ?? 0;
-    const vpa = payload.valorPagoAcumulado ?? 0;
+    let vpa = payload.valorPagoAcumulado ?? 0;
 
-    const novoValorAtual = baseValorAtual + ajuste;
-    payload.valorAtual = novoValorAtual;
+    let novoValorAtual = baseValorAtual;
     
-    payload.saldoDisponivel = novoValorAtual - vpa; 
+    // POSITIVE adjustment: increases VALOR ATUAL (term addendum)
+    // NEGATIVE adjustment: increases VALOR PAGO ACUMULADO (payment/deduction)
+    if (ajuste > 0) {
+      novoValorAtual += ajuste;
+    } else if (ajuste < 0) {
+      vpa += -ajuste;
+    }
+
+    payload.valorAtual = novoValorAtual;
+    payload.valorPagoAcumulado = vpa;
+    // round to 2 decimal places to avoid floating-point precision errors
+    payload.saldoDisponivel = Math.round((novoValorAtual - vpa) * 100) / 100; 
 
     onSave(payload);
     onClose(); 
@@ -418,6 +432,17 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser }
                         value={ajuste}
                         onValueChange={(num) => setAjuste(num)}
                       />
+                      {contract && onAddTermoAditivo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={() => onAddTermoAditivo(contract as Contract)}
+                        >
+                          <Handshake className="h-4 w-4 mr-1" />
+                          Registrar Termo Aditivo
+                        </Button>
+                      )}
                     </div>
 
                     <div className="space-y-3 bg-white p-4 rounded-md border border-blue-100 shadow-sm">

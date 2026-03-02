@@ -15,7 +15,8 @@ import {
   DollarSign, 
   ArrowRight,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Handshake
 } from 'lucide-react';
 
 // firestore helpers used to resolve user avatars
@@ -395,6 +396,33 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                               </span>
                             )}{' '}
                             {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {contract.termosAditivos && contract.termosAditivos.length > 0 && (
+                    <div className="space-y-1 pt-4 border-t border-gray-50">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider flex items-center gap-1">
+                        <Handshake className="w-4 h-4 text-gray-400" /> Termos Aditivos
+                      </span>
+                      <ul className="mt-2 space-y-2">
+                        {contract.termosAditivos.map((a, idx) => (
+                          <li key={idx} className="text-sm">
+                            <span className="font-mono text-xs text-gray-600">
+                              {formatDate(a.timestamp)}
+                            </span>{' '}- {a.note}
+                            {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
+                              <span className="ml-1 font-mono text-xs text-gray-500">
+                                ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                              </span>
+                            )}{' '}                            {(a.originalVigencia || a.vigenciaInicial || a.prorrogacao) ? (
+                              <span className="ml-2 text-[11px] text-gray-500">
+                                {a.originalVigencia && `orig ${a.originalVigencia}`} 
+                                {(a.vigenciaInicial || a.prorrogacao) && `→ ${a.prorrogacao || a.vigenciaInicial}`}
+                              </span>
+                            ) : null}{' '}                            {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
                           </li>
                         ))}
                       </ul>

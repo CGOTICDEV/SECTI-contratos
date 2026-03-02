@@ -24,6 +24,20 @@ export interface Apostila {
   ajuste?: number;
 }
 
+export interface TermoAditivo {
+  timestamp: string;
+  user?: string;
+  note: string;
+  /** acréscimo de valor; sempre positivo nos termos aditivos */
+  ajuste?: number;
+  /** vigência inicial do contrato no momento do termo */
+  vigenciaInicial?: string;
+  /** data da prorrogação (novo término registrado) */
+  prorrogacao?: string;
+  /** data de término que estava vigente antes da prorrogação */
+  originalVigencia?: string;
+}
+
 export interface Comment {
   id: string;
   timestamp: string;
@@ -68,6 +82,8 @@ export interface Contract {
   apostilas?: Apostila[];
   /** cached number of apostilas, kept in the root document to avoid querying a subcollection */
   apostilasCount?: number;
+  /** lista de termos aditivos associados ao contrato */
+  termosAditivos?: TermoAditivo[];
   garantia?: string;
 
   /** lista de e-mails de quem alterou o contrato em algum momento */

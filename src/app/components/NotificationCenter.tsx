@@ -45,7 +45,7 @@ export function NotificationCenter({ contracts, currentUserUid, onContractClick 
         notifs.push({
           id: `${contract.id}-critical`,
           type: 'critical',
-          title: status.type === 'expired' ? 'Contrato Vencido' : 'Vencimento Crítico',
+          title: status.type === 'expired' ? 'Contrato Vencido' : 'Vencimento Imminente',
           message: `${contract.numeroContrato || contract.numeroConvenio} - ${contract.empresa || contract.convenente} ${
             status.type === 'expired' ? 'está vencido' : `vence em ${days} dias`
           }`,

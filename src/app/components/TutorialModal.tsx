@@ -76,10 +76,10 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <RoleCard icon={ShieldCheck} title="Gestor" color="bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-900" desc="Criar e editar contratos e convênios, acompanhar execução completa." />
                 <RoleCard icon={FileSignature} title="Fiscal" color="bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-900" desc="Atualizar execuções técnicas/financeiras, alterar valores e saldos." />
-                <RoleCard icon={Eye} title="CCC" color="bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-900" desc="Acesso somente leitura global; permissão exclusiva para adicionar apostilas." />
+                <RoleCard icon={Eye} title="CCC" color="bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-900" desc="Acesso global com permissão para criar contratos/convênios e adicionar apostilas." />
               </div>
               <p className="mt-4 text-sm text-muted-foreground flex items-center gap-2">
-                <Info className="h-4 w-4" /> O botão <strong>Novo Registro</strong> na barra lateral só aparece para gestores e fiscais.
+                <Info className="h-4 w-4" /> O botão <strong>Novo Registro</strong> na barra lateral aparece para todos os papéis, inclusive CCC.
               </p>
             </section>
 
@@ -121,7 +121,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
               </p>
               <div className="flex flex-col md:flex-row gap-3">
                 <ActionBadge icon="🕵️" title="Detalhes" desc="Abre o modal completo com histórico" />
-                <ActionBadge icon="✏️" title="Editar" desc="Disponível para Gestor/Fiscal" />
+                <ActionBadge icon="✏️" title="Editar" desc="Disponível para gestor/fiscal (CCC não pode editar)" />
                 <ActionBadge icon="🗒️" title="Apostila" desc="Adiciona nota interna (apenas CCC)" />
               </div>
             </section>

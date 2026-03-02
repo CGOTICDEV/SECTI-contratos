@@ -13,9 +13,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Contract } from '../types/contract';
-import { getContractStatus, formatCurrency } from '../utils/contract-helpers';
+import { getContractStatus } from '../utils/contract-helpers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { TrendingUp, TrendingDown, FileText, DollarSign, AlertTriangle, Calendar } from 'lucide-react';
+import { FileText, AlertTriangle, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   contracts: Contract[];
@@ -28,10 +28,7 @@ export function Dashboard({ contracts }: DashboardProps) {
     let safeCount = 0;
     let expiredCount = 0;
 
-    let totalValorInicial = 0;
-    let totalValorAtual = 0;
-    let totalSaldoDisponivel = 0;
-    let totalPagoAcumulado = 0;
+    // financial values removed per request
 
     const contratosByMonth: Record<string, number> = {};
     const valorByTipo: Record<string, number> = { contrato: 0, convenio: 0 };
@@ -51,11 +48,7 @@ export function Dashboard({ contracts }: DashboardProps) {
         safeCount++;
       }
 
-      // Valores financeiros
-      totalValorInicial += contract.valorInicial || 0;
-      totalValorAtual += contract.valorAtual || 0;
-      totalSaldoDisponivel += contract.saldoDisponivel || 0;
-      totalPagoAcumulado += contract.valorPagoAcumulado || 0;
+      // skip financial aggregation
 
       // Contratos por mês de vencimento
       if (contract.vigenciaAtual) {
@@ -92,31 +85,15 @@ export function Dashboard({ contracts }: DashboardProps) {
       });
     }
 
-    // Dados para gráfico de valores
-    const valoresData = [
-      { categoria: 'Valor Inicial', valor: totalValorInicial },
-      { categoria: 'Valor Atual', valor: totalValorAtual },
-      { categoria: 'Saldo Disponível', valor: totalSaldoDisponivel },
-      { categoria: 'Pago Acumulado', valor: totalPagoAcumulado },
-    ];
+    // financial charts removed
 
-    // Dados para tipo de registro
-    const tipoData = Object.entries(valorByTipo).map(([tipo, valor]) => ({
-      name: tipo === 'contrato' ? 'Contratos' : 'Convênios',
-      value: valor,
-    }));
+    // tipoData chart removed per request
 
     return {
       statusData,
       vencimentosPorMes,
-      valoresData,
-      tipoData,
       totals: {
         count: contracts.length,
-        valorInicial: totalValorInicial,
-        valorAtual: totalValorAtual,
-        saldoDisponivel: totalSaldoDisponivel,
-        pagoAcumulado: totalPagoAcumulado,
         critical: criticalCount + expiredCount,
       },
     };
@@ -137,42 +114,6 @@ export function Dashboard({ contracts }: DashboardProps) {
             <div className="text-2xl font-bold">{analytics.totals.count}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Contratos e convênios ativos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Total Atual</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.totals.valorAtual)}</div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              {analytics.totals.valorAtual >= analytics.totals.valorInicial ? (
-                <>
-                  <TrendingUp className="w-3 h-3 text-green-600" />
-                  <span className="text-green-600">Acima do inicial</span>
-                </>
-              ) : (
-                <>
-                  <TrendingDown className="w-3 h-3 text-red-600" />
-                  <span className="text-red-600">Abaixo do inicial</span>
-                </>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Disponível</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.totals.saldoDisponivel)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {((analytics.totals.saldoDisponivel / analytics.totals.valorAtual) * 100 || 0).toFixed(1)}% do valor atual
             </p>
           </CardContent>
         </Card>
@@ -241,53 +182,8 @@ export function Dashboard({ contracts }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Valores Financeiros */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Indicadores Financeiros</CardTitle>
-            <CardDescription>Comparativo de valores totais</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analytics.valoresData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} />
-                <YAxis type="category" dataKey="categoria" width={120} />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                <Bar dataKey="valor" fill="#10B981" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* financial charts removed per request */}
 
-        {/* Distribuição por Tipo */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Valor por Tipo de Registro</CardTitle>
-            <CardDescription>Distribuição entre contratos e convênios</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={analytics.tipoData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${formatCurrency(value)}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {analytics.tipoData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

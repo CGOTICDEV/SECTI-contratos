@@ -37,7 +37,7 @@ const sectiDomain = '@secti.ba.gov.br';
 const roleDescriptions = {
   gestor: 'Cadastra novos contratos, edita dados (prazos, valores) e acompanha a execução.',
   fiscal: 'Acompanha a execução técnica/financeira, atualiza pagamentos e saldos.',
-  ccc: 'Controle externo. Apenas consulta registros e adiciona apostilas (notas internas).'
+  ccc: 'Controle externo com acesso global. Pode criar contratos/convênios e adicionar apostilas (notas internas).'
 };
 
 interface AuthProps {

@@ -43,9 +43,9 @@ Cada usuário é associado a um papel que define o que pode fazer:
 |---------|------------------|
 | **Gestor** | Criar e editar contratos/convênios, acompanhar execução |
 | **Fiscal** | Atualizar execuções técnicas/financeiras, alterar valores/saldos |
-| **CCC** | Acesso somente leitura global; pode **adicionar apostilas** (notas internas) |
+| **CCC** | Acesso global; pode **criar contratos/convênios** e adicionar apostilas (notas internas) |
 
-⚠️ O botão **Novo Registro** na barra lateral só aparece para gestores e fiscais.
+⚠️ O botão **Novo Registro** na barra lateral aparece para todos os perfis, incluindo CCC.
 
 ---
 
@@ -130,6 +130,8 @@ O formulário aparece em uma **barra lateral deslizante** dividida em abas:
 - **Cronograma** – vigências, último termo aditivo.
 - **Financeiro** – valores iniciais/atuais, saldo, pagamentos.
 
+> 📌 Usuários no papel **CCC** também podem abrir o formulário para **criar um novo contrato/convênio**, embora a edição de registros existentes continue restrita a gestor e fiscal.
+
 Campos específicos de convênio surgem automaticamente ao escolher esse tipo.
 
 Ao salvar, o sistema calcula as diferenças e grava um registro de histórico. Se nada mudou, mostra aviso “Nenhuma alteração detectada”.
@@ -147,7 +149,15 @@ Usuários do perfil CCC podem:
 As anotações e ajustes ficam visíveis no detalhe do contrato e são incluídos no histórico.
 
 ---
+## 📄 Termos Aditivos (CCC)
 
+Além das apostilas, o perfil CCC pode registrar **termos aditivos** — notas oficiais que representam acréscimos no valor do contrato.
+
+- O botão "Registrar Termo Aditivo" aparece no formulário de edição (aba Financeiro) e também como ícone na lista de contratos.
+- Cada termo pode conter uma descrição e um valor; o sistema atualiza `valorAtual` e recalcula o saldo.
+- Os termos aditivos são exibidos separadamente das apostilas no detalhe do contrato e no histórico, e também são exportados para planilha.
+
+---
 ## 👤 Meu Perfil
 
 Aqui você pode:

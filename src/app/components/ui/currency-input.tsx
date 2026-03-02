@@ -31,7 +31,7 @@ export function CurrencyInput({ value, onValueChange, ...props }: CurrencyInputP
 
   const parseInput = (str: string): number => {
     if (!str || str === '' || str === '0' || str === '0,00' || str === '-') return 0;
-    // accept comma or dot as decimal separator and optional leading minus
+    // accept comma as decimal separator in Brazilian format (pt-BR)
     // remove everything except digits, comma, dot and minus
     let cleaned = str.replace(/[^0-9,.-]/g, '');
     // if there are multiple minus signs, strip extras
@@ -41,7 +41,8 @@ export function CurrencyInput({ value, onValueChange, ...props }: CurrencyInputP
     if (cleaned.includes('-') && !cleaned.startsWith('-')) {
       cleaned = '-' + cleaned.replace(/-/g, '');
     }
-    const normalized = cleaned.replace(',', '.');
+    // Brazilian format: dots are thousand separators (remove them), comma is decimal separator
+    const normalized = cleaned.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(normalized);
     return isNaN(num) ? 0 : num;
   };
