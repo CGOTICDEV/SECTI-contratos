@@ -77,6 +77,50 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
   const isGestor = currentUser?.role === 'gestor';
   const isFiscal = currentUser?.role === 'fiscal';
 
+  // Helper function to determine if a type should show convenio-specific fields
+  const isConvenioLike = (tipo?: string) => {
+    const convenioTypes = [
+      'convenio',
+      'termoAdesao',
+      'acordoCooperacaoTecnica',
+      'acordoConsorcial',
+      'acordoCooperacaoInternacional',
+      'convenioCooperacaoTecnica',
+      'termoCooperacaoTecnica',
+      'convenioEspacoColaborar',
+      'convenioEspacoFazer',
+      'convenioEspacoPensar',
+      'conveniosFederais'
+    ];
+    return convenioTypes.includes(tipo || '');
+  };
+
+  // Helper function to get friendly name for tipo
+  const getTipoFriendlyName = (tipo?: string) => {
+    const names: Record<string, string> = {
+      'contrato': 'Contrato',
+      'convenio': 'Convênio',
+      'termoAdesao': 'Termo de Adesão',
+      'acordoCooperacaoTecnica': 'Acordo de Cooperação Técnica',
+      'acordoConsorcial': 'Acordo Consorcial',
+      'acordoCooperacaoInternacional': 'Acordo de Cooperação Internacional',
+      'convenioCooperacaoTecnica': 'Convênio de Cooperação Técnica',
+      'termoCooperacaoTecnica': 'Termo de Cooperação Técnica',
+      'termoCessaoUsoMovel': 'Termo de Cessão de Uso Bem Móvel',
+      'termoRecisaoUnilateral': 'Termo de Recisão Unilateral',
+      'termoRecisaoAmigavel': 'Termo de Recisão Amigável',
+      'termoDoacaoMoveis': 'Termo de Doação de Bens Móveis',
+      'convenioEspacoColaborar': 'Convênio de Cooperação Espaço Colaborar',
+      'convenioEspacoFazer': 'Convênio de Cooperação Espaço Fazer',
+      'convenioEspacoPensar': 'Convênio de Cooperação Espaço Pensar',
+      'conveniosFederais': 'Convênios Federais',
+      'termoCessaoVeiculos': 'Termo de Cessão de Veículos',
+      'contratoGestao': 'Contrato de Gestão',
+      'portaria': 'Portaria'
+    };
+    return names[tipo || ''] || 'Registro';
+  };
+
   const [formData, setFormData] = useState<Partial<Contract>>(computeInitial());
   const [ajuste, setAjuste] = useState<number>(0);
 
@@ -153,7 +197,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
           <SheetTitle className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <FileText className="w-6 h-6 text-[#00D1FF]" />
             {contract
-              ? `Ajustar ${contract.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato'}`
+              ? `Ajustar ${getTipoFriendlyName(contract.tipoRegistro)}`
               : 'Novo Registro'}
           </SheetTitle>
           <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
@@ -190,13 +234,31 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Tipo de Registro</Label>
-                      <Select value={formData.tipoRegistro} onValueChange={(v) => handleChange('tipoRegistro', v as 'contrato' | 'convenio')}>
+                      <Select value={formData.tipoRegistro} onValueChange={(v) => handleChange('tipoRegistro', v)}>
                         <SelectTrigger className="bg-gray-50 border-secti-border">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-[300px]">
                           <SelectItem value="contrato">Contrato</SelectItem>
                           <SelectItem value="convenio">Convênio</SelectItem>
+                          <SelectItem value="termoAdesao">Termo de Adesão</SelectItem>
+                          <SelectItem value="acordoCooperacaoTecnica">Acordo de Cooperação Técnica</SelectItem>
+                          <SelectItem value="acordoConsorcial">Acordo Consorcial</SelectItem>
+                          <SelectItem value="acordoCooperacaoInternacional">Acordo de Cooperação Internacional</SelectItem>
+                          <SelectItem value="convenioCooperacaoTecnica">Convênio de Cooperação Técnica</SelectItem>
+                          <SelectItem value="termoCooperacaoTecnica">Termo de Cooperação Técnica</SelectItem>
+                          <SelectItem value="termoCessaoUsoMovel">Termo de Cessão de Uso Bem Móvel</SelectItem>
+                          <SelectItem value="termoRecisaoUnilateral">Termo de Recisão Unilateral</SelectItem>
+                          <SelectItem value="termoRecisaoAmigavel">Termo de Recisão Amigável</SelectItem>
+                          <SelectItem value="termoDoacaoMoveis">Termo de Doação de Bens Móveis</SelectItem>
+                          <SelectItem value="convenioEspacoColaborar">Convênio de Cooperação Espaço Colaborar</SelectItem>
+                          <SelectItem value="convenioEspacoFazer">Convênio de Cooperação Espaço Fazer</SelectItem>
+                          <SelectItem value="convenioEspacoPensar">Convênio de Cooperação Espaço Pensar</SelectItem>
+                          <SelectItem value="conveniosFederais">Convênios Federais</SelectItem>
+                          <SelectItem value="termoCessaoVeiculos">Termo de Cessão de Veículos</SelectItem>
+                          <SelectItem value="contratoGestao">Contrato de Gestão</SelectItem>
+                          <SelectItem value="portaria">Portaria</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -218,12 +280,12 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
 
                 {/* Bloco de Identificação */}
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Dados do {formData.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato'}</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Dados do {getTipoFriendlyName(formData.tipoRegistro)}</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="numeroContrato" className="text-xs font-bold uppercase text-secti-muted">
-                        Código {formData.tipoRegistro === 'convenio' ? '(Opcional)' : ''}
+                        Código {isConvenioLike(formData.tipoRegistro) ? '(Opcional)' : ''}
                       </Label>
                       <Input
                         id="numeroContrato"
@@ -235,7 +297,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="empresa" className="text-xs font-bold uppercase text-secti-muted">
-                        {formData.tipoRegistro === 'convenio' ? 'Convenente' : 'Unidade Contratada'}
+                        {isConvenioLike(formData.tipoRegistro) ? 'Convenente' : 'Unidade Contratada'}
                       </Label>
                       <Input
                         id="empresa"
@@ -285,7 +347,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                 </div>
 
                 {/* Bloco Exclusivo de Convênio */}
-                {formData.tipoRegistro === 'convenio' && (
+                {isConvenioLike(formData.tipoRegistro) && (
                   <div className="bg-[#F0F7FF] p-5 rounded-lg border border-[#BDE0FF] shadow-sm space-y-4">
                     <h3 className="text-sm font-semibold text-[#0B2046] border-b border-[#BDE0FF] pb-2 mb-2">Informações Específicas de Convênio</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

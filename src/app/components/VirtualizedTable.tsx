@@ -1,7 +1,7 @@
 // Componente de tabela virtualizada para grandes volumes de dados
 import { useRef, useEffect, useState, CSSProperties } from 'react';
 import { Contract } from '../types/contract';
-import { getContractStatus, formatCurrency, formatDate } from '../utils/contract-helpers';
+import { getContractStatus, formatCurrency, formatDate, isConvenioType } from '../utils/contract-helpers';
 import { Badge } from './ui/badge';
 import { Pencil, Eye, FilePlus, FileText, Handshake } from 'lucide-react';
 import { Button } from './ui/button';
@@ -100,7 +100,7 @@ export function VirtualizedContractsTable({
           {visibleContracts.map((contract, idx) => {
             const actualIndex = startIndex + idx;
             const status = getContractStatus(contract);
-            const isConvenio = contract.tipoRegistro === 'convenio';
+            const isConvenio = isConvenioType(contract.tipoRegistro);
             const isSelected = selectedIds.has(contract.id);
 
             return (
@@ -129,7 +129,7 @@ export function VirtualizedContractsTable({
                     ) : (
                       <FileText className="w-3 h-3 text-blue-500" />
                     )}
-                    <span className="font-medium">{isConvenio ? 'Conv.' : 'Contr.'}</span>
+                    <span className="font-medium">{contract.tipoRegistro}</span>
                   </div>
                 </div>
 

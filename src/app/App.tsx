@@ -481,25 +481,74 @@ function App() {
   const handleSaveTermoAditivo = async (
     id: string,
     note: string,
+    tipo?: string,
     ajuste: number = 0,
     vigenciaInicial?: string,
-    prorrogacao?: string
+    prorrogacao?: string,
+    documents?: any[]
   ) => {
     try {
       if (!termoAditivoContract) return;
       const ref = doc(db, 'contracts', id);
       const current = termoAditivoContract;
+      
+      // Preparar objetos de documentos serializáveis
+      let processedDocuments: any[] | undefined;
+      if (documents && documents.length > 0) {
+        // Calcular tamanho total estimado dos documentos em base64
+        const totalSize = documents.reduce((sum, doc) => sum + (doc.base64?.length || 0), 0);
+        const MAX_TOTAL_BASE64_SIZE = 500000; // ~500KB em base64 (seguro para Firestore)
+        
+        if (totalSize > MAX_TOTAL_BASE64_SIZE) {
+          toast.error(
+            `Documentos muito grandes (${Math.round(totalSize / 1024)}KB). ` +
+            `Reduza o total para menos de ${Math.round(MAX_TOTAL_BASE64_SIZE / 1024)}KB ou use arquivos menores.`
+          );
+          return;
+        }
+        
+        // Serializar documentos removendo propriedades undefined
+        processedDocuments = documents.map(doc => {
+          const serialized: any = {
+            id: doc.id,
+            name: doc.name,
+            type: doc.type,
+            base64: doc.base64,
+            uploadedAt: doc.uploadedAt,
+            size: doc.size
+          };
+          if (userProfile?.email || userProfile?.uid) {
+            serialized.uploadedBy = userProfile.email?.toLowerCase() || userProfile.uid;
+          }
+          return serialized;
+        });
+      }
+
       const newEntry: any = {
         timestamp: new Date().toISOString(),
-        user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
         note,
-        originalVigencia: current.vigenciaAtual || undefined,
       };
+      
+      if (userProfile?.email || userProfile?.uid) {
+        newEntry.user = userProfile.email?.toLowerCase() || userProfile.uid;
+      }
+      
+      if (tipo) {
+        newEntry.tipo = tipo;
+      }
+      
+      if (current.vigenciaAtual) {
+        newEntry.originalVigencia = current.vigenciaAtual;
+      }
+      
       if (ajuste && ajuste !== 0) {
         newEntry.ajuste = ajuste;
       }
       if (vigenciaInicial) newEntry.vigenciaInicial = vigenciaInicial;
       if (prorrogacao) newEntry.prorrogacao = prorrogacao;
+      if (processedDocuments && processedDocuments.length > 0) {
+        newEntry.documents = processedDocuments;
+      }
 
       // termoaditivo always increases valorAtual
       let novoValorAtual = current.valorAtual || 0;
@@ -561,9 +610,14 @@ function App() {
       }
 
       toast.success('Termo aditivo registrado com sucesso.');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('Falha ao salvar termo aditivo.');
+      const errorMsg = err?.message || 'Falha ao salvar termo aditivo.';
+      if (errorMsg.includes('document size') || errorMsg.includes('invalid nested entity')) {
+        toast.error('Documentos muito grandes para o Firestore. Use arquivos menores (total < 500KB).');
+      } else {
+        toast.error('Falha ao salvar termo aditivo.');
+      }
     }
   };
 

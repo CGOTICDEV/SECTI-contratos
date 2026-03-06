@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
-import { formatDate, formatCurrency } from '../utils/contract-helpers';
+import { formatDate, formatCurrency, isConvenioType } from '../utils/contract-helpers';
 import { Contract, HistoryEntry, HistoryChange, Apostila } from '../types/contract';
+import { downloadBase64File } from '../utils/file-helpers';
 import { 
   FileSearch, 
   FilePlus,
@@ -16,7 +17,9 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
-  Handshake
+  Handshake,
+  FileText,
+  Download
 } from 'lucide-react';
 
 // firestore helpers used to resolve user avatars
@@ -288,7 +291,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
         <SheetHeader className="p-6 bg-[#0B2046] text-white shadow-md z-10">
           <SheetTitle className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
             <FileSearch className="w-6 h-6 text-[#00D1FF]" />
-            Detalhes do {contract.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato'}
+            Detalhes do {contract.tipoRegistro}
           </SheetTitle>
           <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
             ID: {contract.id}
@@ -327,7 +330,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     </div>
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">
-                        {contract.tipoRegistro === 'convenio' ? 'Convenente' : 'Empresa Contratada'}
+                        {isConvenioType(contract.tipoRegistro) ? 'Convenente' : 'Empresa Contratada'}
                       </span>
                       <p className="text-sm text-gray-900 font-medium px-1">
                         {contract.empresa || contract.convenente || 'Não informado'}
@@ -407,22 +410,58 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider flex items-center gap-1">
                         <Handshake className="w-4 h-4 text-gray-400" /> Termos Aditivos
                       </span>
-                      <ul className="mt-2 space-y-2">
+                      <ul className="mt-2 space-y-3">
                         {contract.termosAditivos.map((a, idx) => (
                           <li key={idx} className="text-sm">
-                            <span className="font-mono text-xs text-gray-600">
-                              {formatDate(a.timestamp)}
-                            </span>{' '}- {a.note}
-                            {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
-                              <span className="ml-1 font-mono text-xs text-gray-500">
-                                ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                            <div>
+                              <span className="font-mono text-xs text-gray-600">
+                                {formatDate(a.timestamp)}
                               </span>
-                            )}{' '}                            {(a.originalVigencia || a.vigenciaInicial || a.prorrogacao) ? (
-                              <span className="ml-2 text-[11px] text-gray-500">
-                                {a.originalVigencia && `orig ${a.originalVigencia}`} 
-                                {(a.vigenciaInicial || a.prorrogacao) && `→ ${a.prorrogacao || a.vigenciaInicial}`}
-                              </span>
-                            ) : null}{' '}                            {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
+                              {a.tipo && (
+                                <span className="ml-2 px-2 py-0.5 bg-[#0B2046]/10 text-[#0B2046] rounded text-[10px] font-semibold">
+                                  {
+                                    ({
+                                      'prorrogacao': 'Prorrogação de Prazo',
+                                      'acrescimo': 'Acréscimo de Valor',
+                                      'supressao': 'Supressão de Valor',
+                                      'termoRecisaoUnilateral': 'Termo de Recisão Unilateral',
+                                      'termoRecisaoAmigavel': 'Termo de Recisão Amigável',
+                                      'reajuste': 'Reajuste',
+                                      'outro': 'Outro'
+                                    } as Record<string, string>)[a.tipo] || a.tipo
+                                  }
+                                </span>
+                              )}
+                              {' '}- {a.note}
+                              {typeof a.ajuste === 'number' && a.ajuste !== 0 && (
+                                <span className="ml-1 font-mono text-xs text-gray-500">
+                                  ({a.ajuste >= 0 ? '+' : ''}{formatCurrency(a.ajuste)})
+                                </span>
+                              )}{' '}                            {(a.originalVigencia || a.vigenciaInicial || a.prorrogacao) ? (
+                                <span className="ml-2 text-[11px] text-gray-500">
+                                  {a.originalVigencia && `orig ${a.originalVigencia}`} 
+                                  {(a.vigenciaInicial || a.prorrogacao) && `→ ${a.prorrogacao || a.vigenciaInicial}`}
+                                </span>
+                              ) : null}{' '}                            {a.user && <span className="text-gray-500 text-xs">({a.user})</span>}
+                            </div>
+                            {/* Exibir documentos anexados */}
+                            {a.documents && a.documents.length > 0 && (
+                              <div className="ml-4 mt-2 space-y-1">
+                                {a.documents.map((doc, docIdx) => (
+                                  <div key={docIdx} className="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded">
+                                    <FileText className="w-3.5 h-3.5 text-[#0B2046] flex-shrink-0" />
+                                    <span className="text-gray-700 flex-1 truncate">{doc.name}</span>
+                                    <button
+                                      onClick={() => downloadBase64File(doc.base64, doc.name, doc.type)}
+                                      className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
+                                      title="Baixar documento"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>

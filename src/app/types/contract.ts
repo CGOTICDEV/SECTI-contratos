@@ -24,10 +24,22 @@ export interface Apostila {
   ajuste?: number;
 }
 
+export interface TermoAditivoDocument {
+  id: string;
+  name: string;
+  type: string; // MIME type (application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+  base64: string; // conteúdo do arquivo em base64
+  uploadedBy?: string;
+  uploadedAt: string;
+  size: number; // tamanho em bytes
+}
+
 export interface TermoAditivo {
   timestamp: string;
   user?: string;
   note: string;
+  /** tipo do termo aditivo */
+  tipo?: string;
   /** acréscimo de valor; sempre positivo nos termos aditivos */
   ajuste?: number;
   /** vigência inicial do contrato no momento do termo */
@@ -36,6 +48,8 @@ export interface TermoAditivo {
   prorrogacao?: string;
   /** data de término que estava vigente antes da prorrogação */
   originalVigencia?: string;
+  /** documentos anexados ao termo aditivo (PDF, DOC, DOCX) */
+  documents?: TermoAditivoDocument[];
 }
 
 export interface Comment {
@@ -60,7 +74,12 @@ export interface Document {
 export interface Contract {
   id: string;
   /** diferenciar um contrato comum de um registro de convênio */
-  tipoRegistro: 'contrato' | 'convenio';
+  tipoRegistro: 'contrato' | 'convenio' | 'termoAdesao' | 'acordoCooperacaoTecnica' | 
+    'acordoConsorcial' | 'acordoCooperacaoInternacional' | 'convenioCooperacaoTecnica' | 
+    'termoCooperacaoTecnica' | 'termoCessaoUsoMovel' | 'termoRecisaoUnilateral' | 
+    'termoRecisaoAmigavel' | 'termoDoacaoMoveis' | 'convenioEspacoColaborar' | 
+    'convenioEspacoFazer' | 'convenioEspacoPensar' | 'conveniosFederais' | 
+    'termoCessaoVeiculos' | 'contratoGestao' | 'portaria' | 'outro';
 
   // campos clássicos de contrato
   numeroContrato: string;

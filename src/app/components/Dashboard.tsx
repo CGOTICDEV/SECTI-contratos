@@ -31,7 +31,7 @@ export function Dashboard({ contracts }: DashboardProps) {
     // financial values removed per request
 
     const contratosByMonth: Record<string, number> = {};
-    const valorByTipo: Record<string, number> = { contrato: 0, convenio: 0 };
+    const valorByTipo: Record<string, number> = {};
 
     contracts.forEach((contract) => {
       const status = getContractStatus(contract);

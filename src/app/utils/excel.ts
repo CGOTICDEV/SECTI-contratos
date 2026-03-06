@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { Contract } from '../types/contract';
 import { db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { isConvenioType } from './contract-helpers';
 
 type ColMeta = {
     key: keyof Contract | string;
@@ -127,13 +128,14 @@ export async function exportContractsToExcel(
     contracts.forEach((c, idx) => {
         const rowValues = cols.map((col) => {
             if (col.key === 'item') {
-                return c.tipoRegistro === 'convenio' ? idx + 1 : '';
+                return isConvenioType(c.tipoRegistro) ? idx + 1 : '';
             }
             switch (col.key) {
                 case 'vigenciaAtual':
                     return c.vigenciaAtual ? new Date(c.vigenciaAtual) : '';
                 case 'tipoRegistro':
-                    return c.tipoRegistro === 'convenio' ? 'Convênio' : 'Contrato';
+                    // export the raw string; previous behavior only distinguished contrato/convênio
+                    return c.tipoRegistro || '';
                 case 'termosAditivos':
                     return (c as any).termosAditivos
                         ? (c as any).termosAditivos

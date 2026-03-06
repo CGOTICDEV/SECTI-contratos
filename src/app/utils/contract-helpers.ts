@@ -1,6 +1,13 @@
 import { Contract, StatusInfo, HistoryChange } from '../types/contract';
 import { format } from 'date-fns';
 
+// helper to determine if a given instrumento type should be treated as a convênio.
+export function isConvenioType(tipo?: string): boolean {
+  if (!tipo) return false;
+  const lower = tipo.toLowerCase();
+  return lower.includes('convênio') || lower.includes('convenio');
+}
+
 export function calculateDaysRemaining(vigenciaAtual: string): number {
   const today = new Date();
   if (!vigenciaAtual) return Infinity;

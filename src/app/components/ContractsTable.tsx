@@ -1,5 +1,5 @@
 import { Contract } from '../types/contract';
-import { getContractStatus, formatCurrency, formatDate } from '../utils/contract-helpers';
+import { getContractStatus, formatCurrency, formatDate, isConvenioType } from '../utils/contract-helpers';
 import { Badge } from './ui/badge';
 import {
   Table,
@@ -36,7 +36,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
     );
   }
 
-  const hasConvenios = contracts.some((c) => c.tipoRegistro === 'convenio');
+  const hasConvenios = contracts.some((c) => isConvenioType(c.tipoRegistro));
 
   return (
     <div className="bg-white rounded-lg border border-secti-border overflow-hidden shadow-sm flex flex-col">
@@ -65,7 +65,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
       <div className="block md:hidden flex-col">
         {contracts.map((contract, idx) => {
           const status = getContractStatus(contract);
-          const isConvenio = contract.tipoRegistro === 'convenio';
+          const isConvenio = isConvenioType(contract.tipoRegistro);
 
           return (
             <div
@@ -78,7 +78,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50 px-2 py-1 rounded w-fit border border-gray-100">
                     {isConvenio ? <Handshake className="w-3.5 h-3.5 text-indigo-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
-                    <span className="text-[11px] font-medium uppercase tracking-wider">{isConvenio ? 'Convênio' : 'Contrato'}</span>
+                    <span className="text-[11px] font-medium uppercase tracking-wider">{contract.tipoRegistro}</span>
                   </div>
                   <div className="font-mono text-sm font-bold text-[#0B2046] flex items-center gap-1">
                     {contract.numeroContrato || contract.numeroConvenio || '-'}
@@ -208,7 +208,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
           <TableBody>
             {contracts.map((contract, idx) => {
               const status = getContractStatus(contract);
-              const isConvenio = contract.tipoRegistro === 'convenio';
+              const isConvenio = isConvenioType(contract.tipoRegistro);
 
               return (
                 <TableRow
