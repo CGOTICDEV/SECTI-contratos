@@ -87,6 +87,7 @@ export interface Contract {
   objeto: string;
   gestor: string;
   fiscal: string;
+  ccc?: string;
   situacao: 'Vigente' | 'Vencido' | 'Suspenso';
   vigenciaInicial: string;
   vigenciaAtual: string;

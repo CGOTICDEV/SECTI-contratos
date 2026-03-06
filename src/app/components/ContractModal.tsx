@@ -31,7 +31,7 @@ interface ContractModalProps {
   contract?: Contract;
   currentUser?: {
     email?: string;
-    role?: 'gestor' | 'fiscal';
+    role?: string;
     displayName?: string;
   };
   onAddTermoAditivo?: (contract: Contract) => void;
@@ -45,6 +45,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     objeto: '',
     gestor: '',
     fiscal: '',
+    ccc: '',
     situacao: 'Vigente',
     vigenciaInicial: '',
     vigenciaAtual: '',
@@ -70,12 +71,17 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
       const nameOrEmail = currentUser.displayName || currentUser.email || '';
       if (currentUser.role === 'gestor') base.gestor = nameOrEmail;
       if (currentUser.role === 'fiscal') base.fiscal = nameOrEmail;
+      // se o usuário não for gestor nem fiscal, assumir como CCC (Coordenação de Contratos e Convênios)
+      if (currentUser.role !== 'gestor' && currentUser.role !== 'fiscal') {
+        base.ccc = nameOrEmail;
+      }
     }
     return base;
   };
 
   const isGestor = currentUser?.role === 'gestor';
   const isFiscal = currentUser?.role === 'fiscal';
+  const isCCC = !!currentUser && currentUser.role !== 'gestor' && currentUser.role !== 'fiscal';
 
   // Helper function to determine if a type should show convenio-specific fields
   const isConvenioLike = (tipo?: string) => {
@@ -231,7 +237,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                     <CheckCircle2 className="w-4 h-4 text-secti-muted" />
                     <h3 className="text-sm font-semibold text-gray-700">Classificação e Status</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Tipo de Registro</Label>
                       <Select value={formData.tipoRegistro} onValueChange={(v) => handleChange('tipoRegistro', v)}>
@@ -282,7 +288,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
                   <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Dados do {getTipoFriendlyName(formData.tipoRegistro)}</h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="numeroContrato" className="text-xs font-bold uppercase text-secti-muted">
                         Código {isConvenioLike(formData.tipoRegistro) ? '(Opcional)' : ''}
@@ -330,6 +336,17 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                         onChange={(e) => handleChange('fiscal', e.target.value)}
                         placeholder="Nome do Fiscal"
                         disabled={!isFiscal}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ccc" className="text-xs font-bold uppercase text-secti-muted">CCC</Label>
+                      <Input
+                        id="ccc"
+                        className="bg-gray-50 border-secti-border disabled:opacity-70 disabled:bg-gray-100"
+                        value={formData.ccc}
+                        onChange={(e) => handleChange('ccc', e.target.value)}
+                        placeholder="Coordenação de Contratos e Convênios (CCC)"
+                        disabled={!isCCC}
                       />
                     </div>
                   </div>

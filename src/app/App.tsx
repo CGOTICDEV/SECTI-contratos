@@ -1094,17 +1094,20 @@ function App() {
               onClose={() => { setIsModalOpen(false); setEditingContract(undefined); }}
               onSave={handleSaveContract}
               contract={editingContract}
+              // passar informações do usuário sempre que houver perfil
               currentUser={
-                userProfile && (userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                userProfile
                   ? {
                       email: userProfile.email,
                       role: userProfile.role,
                       displayName: userProfile.displayName,
                     }
                   : undefined
-              } 
+              }
               onAddTermoAditivo={
-                userProfile?.role === 'ccc' ? handleAddTermoAditivoClick : undefined
+                userProfile && (userProfile.role === 'ccc' || userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                  ? handleAddTermoAditivoClick
+                  : undefined
               }
             />
             <ApostilaModal
