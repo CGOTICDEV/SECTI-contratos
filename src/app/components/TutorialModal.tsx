@@ -142,7 +142,7 @@ export function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
                   <h4 className="font-semibold text-foreground">Criar / Editar</h4>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Formulário lateral dividido em abas: <strong>Geral</strong>, <strong>Cronograma</strong> e <strong>Financeiro</strong>.
+                  Formulário lateral dividido em abas: <strong>Geral</strong>, <strong>Prazo</strong> e <strong>Financeiro</strong>.
                   O sistema calcula diferenças e grava o histórico automaticamente ao salvar.
                 </p>
               </div>

@@ -127,7 +127,7 @@ Ao ver um contrato/convênio você encontra:
 O formulário aparece em uma **barra lateral deslizante** dividida em abas:
 
 - **Geral** – tipo (contrato/convênio), status, códigos, empresa, gestor, fiscal, objeto.
-- **Cronograma** – vigências, último termo aditivo.
+- **Prazo** – vigências, último termo aditivo.
 - **Financeiro** – valores iniciais/atuais, saldo, pagamentos.
 
 > 📌 Usuários no papel **CCC** também podem abrir o formulário para **criar um novo contrato/convênio**, embora a edição de registros existentes continue restrita a gestor e fiscal.

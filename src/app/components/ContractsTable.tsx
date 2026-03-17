@@ -110,13 +110,8 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
                 </p>
               </div>
 
-              {/* Footer Details: Grid layout for Gestor, Vigência, and Saldo */}
-              <div className="grid grid-cols-2 gap-3 mt-1 bg-gray-50/50 p-2.5 rounded-md border border-gray-50">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Gestor / Fiscal</span>
-                  <span className="text-xs font-semibold text-gray-800 truncate">{contract.gestor || '-'}</span>
-                  <span className="text-[11px] text-gray-500 truncate">{contract.fiscal || '-'}</span>
-                </div>
+              {/* Footer Details: Vigência e Saldo (mobile) */}
+              <div className="mt-1 bg-gray-50/50 p-2.5 rounded-md border border-gray-50">
                 <div className="flex flex-col gap-0.5 text-right items-end">
                   <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Vigência / Saldo</span>
                   <span className="font-mono text-xs font-medium text-gray-700">{formatDate(contract.vigenciaAtual)}</span>
@@ -195,10 +190,10 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Nº Contrato</TableHead>
 
               {!hasConvenios && (
-                <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 min-w-[250px]">Empresa / Objeto</TableHead>
+                <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 min-w-[250px]">Objeto</TableHead>
               )}
 
-              <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11">Gestor / Fiscal</TableHead>
+              {/* Gestor / Fiscal column removed per UI decision (CCC only) */}
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Vigência Atual</TableHead>
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 whitespace-nowrap">Saldo & Garantia</TableHead>
               <TableHead className="text-[11px] font-bold text-secti-muted uppercase tracking-wider h-11 text-right pr-6">Ações</TableHead>
@@ -277,16 +272,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
                     </TableCell>
                   )}
 
-                  <TableCell className="py-3">
-                    <div className="flex flex-col gap-0.5">
-                      <p className="text-xs font-semibold text-gray-800 truncate max-w-[140px]" title={contract.gestor}>
-                        {contract.gestor || '-'}
-                      </p>
-                      <p className="text-[11px] text-gray-500 truncate max-w-[140px]" title={contract.fiscal}>
-                        {contract.fiscal || '-'}
-                      </p>
-                    </div>
-                  </TableCell>
+                  {/* Gestor / Fiscal column removed from table rows */}
 
                   <TableCell className="py-3">
                     <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md border border-gray-100 w-fit">

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetDescription,
-  SheetFooter 
+  SheetFooter
 } from './ui/sheet';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -22,6 +22,7 @@ import {
 } from './ui/select';
 import { Contract } from '../types/contract';
 import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { formatCurrency, formatDate } from '../utils/contract-helpers';
 
 interface ContractModalProps {
@@ -43,9 +44,6 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     numeroContrato: '',
     empresa: '',
     objeto: '',
-    gestor: '',
-    fiscal: '',
-    ccc: '',
     situacao: 'Vigente',
     vigenciaInicial: '',
     vigenciaAtual: '',
@@ -61,7 +59,15 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     numeroTermoCooperacaoTecnica: '',
     numeroConvenio: '',
     convenente: '',
+    interveniente: '',
+    repasse: false,
+    descentralizacaoCredito: false,
+    valorConcedente: 0,
+    valorConvenente: 0,
     termoAdesao: '',
+    // liberação de recursos (convênios)
+    liberacaoRecurso: undefined,
+    liberacaoRecursoObservacao: '',
   };
 
   const computeInitial = () => {
@@ -69,9 +75,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     const base = { ...defaultData };
     if (currentUser) {
       const nameOrEmail = currentUser.displayName || currentUser.email || '';
-      if (currentUser.role === 'gestor') base.gestor = nameOrEmail;
-      if (currentUser.role === 'fiscal') base.fiscal = nameOrEmail;
-      // se o usuário não for gestor nem fiscal, assumir como CCC (Coordenação de Contratos e Convênios)
+      // Como apenas CCC criará registros, atribuímos CCC quando apropriado
       if (currentUser.role !== 'gestor' && currentUser.role !== 'fiscal') {
         base.ccc = nameOrEmail;
       }
@@ -79,14 +83,13 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     return base;
   };
 
-  const isGestor = currentUser?.role === 'gestor';
-  const isFiscal = currentUser?.role === 'fiscal';
   const isCCC = !!currentUser && currentUser.role !== 'gestor' && currentUser.role !== 'fiscal';
 
   // Helper function to determine if a type should show convenio-specific fields
   const isConvenioLike = (tipo?: string) => {
     const convenioTypes = [
       'convenio',
+      'convenioRepasse',  
       'termoAdesao',
       'acordoCooperacaoTecnica',
       'acordoConsorcial',
@@ -106,6 +109,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     const names: Record<string, string> = {
       'contrato': 'Contrato',
       'convenio': 'Convênio',
+      'convenioRepasse': 'Convênio de Repasse',
       'termoAdesao': 'Termo de Adesão',
       'acordoCooperacaoTecnica': 'Acordo de Cooperação Técnica',
       'acordoConsorcial': 'Acordo Consorcial',
@@ -136,6 +140,8 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     'saldoDisponivel',
     'valorPagoAno',
     'valorPagoAcumulado',
+    'valorConcedente',
+    'valorConvenente',
   ];
 
   React.useEffect(() => {
@@ -150,10 +156,10 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
   React.useEffect(() => {
     const valorAtual = formData.valorAtual ?? 0;
     const pagoAcumulado = formData.valorPagoAcumulado ?? 0;
-    
+
     // round to 2 decimal places to avoid floating-point precision errors
     const saldo = Math.round((valorAtual - pagoAcumulado) * 100) / 100;
-    
+
     setFormData((prev) => ({
       ...prev,
       saldoDisponivel: saldo,
@@ -162,13 +168,23 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isConvenioLike(formData.tipoRegistro)) {
+      const conv = formData.convenente?.toString().trim();
+      const inter = (formData as any).interveniente?.toString().trim();
+      if (!conv && !inter) {
+        window.alert('Em convênio é preciso informar o convenente, o interveniente, ou ambos.');
+        return;
+      }
+    }
+
     let payload: Partial<Contract> = { ...formData };
-    
+
     const baseValorAtual = payload.valorAtual ?? 0;
     let vpa = payload.valorPagoAcumulado ?? 0;
 
     let novoValorAtual = baseValorAtual;
-    
+
     // POSITIVE adjustment: increases VALOR ATUAL (term addendum)
     // NEGATIVE adjustment: increases VALOR PAGO ACUMULADO (payment/deduction)
     if (ajuste > 0) {
@@ -180,10 +196,10 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     payload.valorAtual = novoValorAtual;
     payload.valorPagoAcumulado = vpa;
     // round to 2 decimal places to avoid floating-point precision errors
-    payload.saldoDisponivel = Math.round((novoValorAtual - vpa) * 100) / 100; 
+    payload.saldoDisponivel = Math.round((novoValorAtual - vpa) * 100) / 100;
 
     onSave(payload);
-    onClose(); 
+    onClose();
   };
 
   const handleChange = (field: keyof Contract, value: string | number) => {
@@ -194,10 +210,39 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     setFormData((prev) => ({ ...prev, [field]: parsed }));
   };
 
+  const getGarantiaStates = () => {
+    const tipo = formData.garantiaTipo;
+    return {
+      tecnica: tipo === 'tecnica' || tipo === 'tecnicaEValor',
+      valor: tipo === 'valor' || tipo === 'tecnicaEValor',
+      tecnicaEValor: tipo === 'tecnicaEValor',
+    };
+  };
+
+  const updateGarantiaFromCheckbox = (changes: { tecnica?: boolean; valor?: boolean; tecnicaEValor?: boolean }) => {
+    const current = getGarantiaStates();
+    const tecnica = changes.tecnica ?? current.tecnica;
+    const valor = changes.valor ?? current.valor;
+    const tecnicaEValor = changes.tecnicaEValor ?? current.tecnicaEValor;
+
+    let nextTipo: Contract['garantiaTipo'] | undefined;
+    if (tecnicaEValor || (tecnica && valor)) {
+      nextTipo = 'tecnicaEValor';
+    } else if (tecnica) {
+      nextTipo = 'tecnica';
+    } else if (valor) {
+      nextTipo = 'valor';
+    } else {
+      nextTipo = undefined;
+    }
+
+    setFormData((prev) => ({ ...prev, garantiaTipo: nextTipo }));
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="sm:max-w-xl w-full border-l border-secti-border bg-[#F8FAFC] p-0 flex flex-col shadow-2xl">
-        
+
         {/* HEADER */}
         <SheetHeader className="p-6 bg-[#0B2046] text-white shadow-md z-10">
           <SheetTitle className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
@@ -219,7 +264,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                 <Info className="w-4 h-4" /> Geral
               </TabsTrigger>
               <TabsTrigger value="dates" className="gap-2 text-sm data-[state=active]:text-secti-primary data-[state=active]:border-b-2 data-[state=active]:border-secti-primary pb-3 pt-4">
-                <Calendar className="w-4 h-4" /> Cronograma
+                <Calendar className="w-4 h-4" /> Prazo
               </TabsTrigger>
               <TabsTrigger value="finance" className="gap-2 text-sm data-[state=active]:text-secti-primary data-[state=active]:border-b-2 data-[state=active]:border-secti-primary pb-3 pt-4">
                 <DollarSign className="w-4 h-4" /> Financeiro
@@ -227,19 +272,19 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
             </TabsList>
 
             <div className="p-6 flex-1">
-              
+
               {/* ABA GERAL */}
               <TabsContent value="info" className="space-y-6 m-0 animate-in fade-in duration-300">
-                
+
                 {/* Bloco de Classificação */}
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-secti-muted" />
                     <h3 className="text-sm font-semibold text-gray-700">Classificação e Status</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase text-secti-muted">Tipo de Registro</Label>
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Modalidade da Licitação</Label>
                       <Select value={formData.tipoRegistro} onValueChange={(v) => handleChange('tipoRegistro', v)}>
                         <SelectTrigger className="bg-gray-50 border-secti-border">
                           <SelectValue />
@@ -287,11 +332,11 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                 {/* Bloco de Identificação */}
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
                   <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Dados do {getTipoFriendlyName(formData.tipoRegistro)}</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+<div className={`grid grid-cols-1 ${isConvenioLike(formData.tipoRegistro) ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
                     <div className="space-y-2">
                       <Label htmlFor="numeroContrato" className="text-xs font-bold uppercase text-secti-muted">
-                        Código {isConvenioLike(formData.tipoRegistro) ? '(Opcional)' : ''}
+                        {isConvenioLike(formData.tipoRegistro) ? 'Nº do convênio' : 'Nº do contrato'}
                       </Label>
                       <Input
                         id="numeroContrato"
@@ -301,58 +346,54 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                         placeholder="Ex: 001/2024-SECTI"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="empresa" className="text-xs font-bold uppercase text-secti-muted">
-                        {isConvenioLike(formData.tipoRegistro) ? 'Convenente' : 'Unidade Contratada'}
-                      </Label>
-                      <Input
-                        id="empresa"
-                        className="bg-gray-50 border-secti-border"
-                        value={formData.empresa}
-                        onChange={(e) => handleChange('empresa', e.target.value)}
-                        placeholder="Nome da instituição"
-                      />
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="gestor" className="text-xs font-bold uppercase text-secti-muted">Gestor</Label>
-                      <Input
-                        id="gestor"
-                        className="bg-gray-50 border-secti-border disabled:opacity-70 disabled:bg-gray-100"
-                        value={formData.gestor}
-                        onChange={(e) => handleChange('gestor', e.target.value)}
-                        placeholder="Nome do Gestor"
-                        disabled={!isGestor}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="fiscal" className="text-xs font-bold uppercase text-secti-muted">Fiscal</Label>
-                      <Input
-                        id="fiscal"
-                        className="bg-gray-50 border-secti-border disabled:opacity-70 disabled:bg-gray-100"
-                        value={formData.fiscal}
-                        onChange={(e) => handleChange('fiscal', e.target.value)}
-                        placeholder="Nome do Fiscal"
-                        disabled={!isFiscal}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ccc" className="text-xs font-bold uppercase text-secti-muted">CCC</Label>
-                      <Input
-                        id="ccc"
-                        className="bg-gray-50 border-secti-border disabled:opacity-70 disabled:bg-gray-100"
-                        value={formData.ccc}
-                        onChange={(e) => handleChange('ccc', e.target.value)}
-                        placeholder="Coordenação de Contratos e Convênios (CCC)"
-                        disabled={!isCCC}
-                      />
-                    </div>
+                    {isConvenioLike(formData.tipoRegistro) ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="convenente" className="text-xs font-bold uppercase text-secti-muted">
+                            Convenente
+                          </Label>
+                          <Input
+                            id="convenente"
+                            className="bg-gray-50 border-secti-border"
+                            value={formData.convenente ?? ''}
+                            onChange={(e) => handleChange('convenente', e.target.value)}
+                            placeholder="Nome do convenente"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="interveniente" className="text-xs font-bold uppercase text-secti-muted">
+                            Interveniente
+                          </Label>
+                          <Input
+                            id="interveniente"
+                            className="bg-gray-50 border-secti-border"
+                            value={formData.interveniente ?? ''}
+                            onChange={(e) => handleChange('interveniente', e.target.value)}
+                            placeholder="Nome do interveniente"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="empresa" className="text-xs font-bold uppercase text-secti-muted">
+                          Unidade Contratada
+                        </Label>
+                        <Input
+                          id="empresa"
+                          className="bg-gray-50 border-secti-border"
+                          value={formData.empresa ?? ''}
+                          onChange={(e) => handleChange('empresa', e.target.value)}
+                          placeholder="Nome da instituição"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2 pt-2">
-                    <Label htmlFor="objeto" className="text-xs font-bold uppercase text-secti-muted">Relatório de Objeto</Label>
+                    <Label htmlFor="objeto" className="text-xs font-bold uppercase text-secti-muted">
+                      {isConvenioLike(formData.tipoRegistro) ? 'Objeto do convênio' : 'Objeto do contrato'}
+                    </Label>
                     <Textarea
                       id="objeto"
                       className="bg-gray-50 border-secti-border min-h-[100px] resize-none"
@@ -361,58 +402,85 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                       placeholder="Descreva o objeto principal..."
                     />
                   </div>
+
                 </div>
 
-                {/* Bloco Exclusivo de Convênio */}
-                {isConvenioLike(formData.tipoRegistro) && (
-                  <div className="bg-[#F0F7FF] p-5 rounded-lg border border-[#BDE0FF] shadow-sm space-y-4">
-                    <h3 className="text-sm font-semibold text-[#0B2046] border-b border-[#BDE0FF] pb-2 mb-2">Informações Específicas de Convênio</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase text-secti-muted">Nº Acordo Coop. Técnica</Label>
-                        <Input className="bg-white border-[#BDE0FF]" value={formData.numeroAcordoCooperacaoTecnica} onChange={(e) => handleChange('numeroAcordoCooperacaoTecnica', e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase text-secti-muted">Nº Termo Coop. Técnica</Label>
-                        <Input className="bg-white border-[#BDE0FF]" value={formData.numeroTermoCooperacaoTecnica} onChange={(e) => handleChange('numeroTermoCooperacaoTecnica', e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase text-secti-muted">Nº do Convênio</Label>
-                        <Input className="bg-white border-[#BDE0FF]" value={formData.numeroConvenio} onChange={(e) => handleChange('numeroConvenio', e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase text-secti-muted">Termo de Adesão</Label>
-                        <Input className="bg-white border-[#BDE0FF]" value={formData.termoAdesao} onChange={(e) => handleChange('termoAdesao', e.target.value)} />
-                      </div>
+                {/* Seção: Fiscalização do contrato */}
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Fiscalização do contrato</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Gestor</Label>
+                      <Input className="bg-gray-50 border-secti-border" value={formData.gestor ?? ''} onChange={(e) => handleChange('gestor', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Fiscal</Label>
+                      <Input className="bg-gray-50 border-secti-border" value={formData.fiscal ?? ''} onChange={(e) => handleChange('fiscal', e.target.value)} />
                     </div>
                   </div>
-                )}
+                </div>
+
+                {/* Seção: Garantia contratual */}
+                <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Garantia contratual</h3>
+                  <p className="text-xs text-secti-muted">Selecione o tipo de garantia aplicável</p>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-secti-primary border-secti-border rounded"
+                        checked={getGarantiaStates().tecnica}
+                        onChange={(e) => updateGarantiaFromCheckbox({ tecnica: e.target.checked })}
+                      />
+                      <span className="text-sm">Técnica</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-secti-primary border-secti-border rounded"
+                        checked={getGarantiaStates().valor}
+                        onChange={(e) => updateGarantiaFromCheckbox({ valor: e.target.checked })}
+                      />
+                      <span className="text-sm">Valor</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-secti-primary border-secti-border rounded"
+                        checked={getGarantiaStates().tecnicaEValor}
+                        onChange={(e) => updateGarantiaFromCheckbox({ tecnicaEValor: e.target.checked })}
+                      />
+                      <span className="text-sm">Técnica e Valor</span>
+                    </label>
+                  </div>
+                </div>
+
               </TabsContent>
 
-              {/* ABA CRONOGRAMA */}
+              {/* ABA PRAZO */}
               <TabsContent value="dates" className="space-y-6 m-0 animate-in fade-in duration-300">
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase text-secti-muted">Início da Operação</Label>
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Início da Vigência</Label>
                       <Input type="date" className="bg-gray-50 font-mono" value={formData.vigenciaInicial} onChange={(e) => handleChange('vigenciaInicial', e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase text-secti-muted">Vigência Final</Label>
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Término da Vigência</Label>
                       {/* O border-orange-200 original foi mantido e reforçado para dar destaque de prazo */}
                       <Input type="date" className="bg-orange-50 font-mono border-orange-300 focus:ring-orange-400" value={formData.vigenciaAtual} onChange={(e) => handleChange('vigenciaAtual', e.target.value)} />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 border-t border-gray-100 pt-4">
-                    <Label className="text-xs font-bold uppercase text-secti-muted">Histórico: Último Termo Aditivo</Label>
+                    <Label className="text-xs font-bold uppercase text-secti-muted">Histórico/Alterações do {isConvenioLike(formData.tipoRegistro) ? 'convênio' : 'contrato'}</Label>
                     <Textarea
                       className="bg-gray-50 border-secti-border min-h-[100px] resize-none"
                       value={formData.ultimoTermoAditivo}
                       onChange={(e) => handleChange('ultimoTermoAditivo', e.target.value)}
-                      placeholder="Descreva o conteúdo do último termo aditivo (datas, prorrogações, etc.)"
+                      placeholder="Descreva aqui as principais alterações, prorrogações ou aditivos relacionados a prazos..."
                     />
-                  </div> 
+                  </div>
                   {formData.apostilas && formData.apostilas.length > 0 && (
                     <div className="space-y-1 pt-4 border-t border-gray-100">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Apostilas existentes</span>
@@ -435,14 +503,14 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
 
               {/* ABA FINANCEIRO */}
               <TabsContent value="finance" className="space-y-6 m-0 animate-in fade-in duration-300">
-                
+
                 {/* Bloco de Valores Principais */}
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
                   <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Painel de Valores</h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase text-secti-muted">Aporte Inicial (R$)</Label>
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Valor inicial do contrato (R$)</Label>
                       <CurrencyInput
                         className="bg-gray-50 font-mono text-lg"
                         value={formData.valorInicial ?? 0}
@@ -453,7 +521,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                             valorAtual: prev.valorAtual === 0 ? num : prev.valorAtual,
                           }));
                         }}
-                        disabled={!!contract} 
+                        disabled={!!contract}
                       />
                     </div>
                     <div className="space-y-2">
@@ -467,14 +535,6 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase text-secti-muted">Pago em 2025 (R$)</Label>
-                      <CurrencyInput
-                        className="bg-gray-50 font-mono text-lg"
-                        value={formData.valorPagoAno ?? 0}
-                        onValueChange={(num) => handleChange('valorPagoAno', num)}
-                      />
-                    </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Pago Acumulado (R$)</Label>
                       <CurrencyInput
@@ -493,10 +553,127 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                       type="text"
                       className="font-mono text-xl font-bold text-green-700 bg-green-50 border-green-200 h-12"
                       value={formatCurrency(formData.saldoDisponivel || 0)}
-                      disabled 
+                      disabled
                     />
                   </div>
                 </div>
+
+                {/* Bloco Financeiro de Convênio */}
+                {isConvenioLike(formData.tipoRegistro) && (
+                  <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Dados Financeiros do Convênio</h3>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Forma de repasse</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 text-secti-primary border-secti-border rounded"
+                            checked={formData.repasse ?? false}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, repasse: e.target.checked }))}
+                          />
+                          <span className="text-sm">Repasse</span>
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 text-secti-primary border-secti-border rounded"
+                            checked={formData.descentralizacaoCredito ?? false}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, descentralizacaoCredito: e.target.checked }))}
+                          />
+                          <span className="text-sm">Descentralização de crédito</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-secti-muted">Valor do concedente (R$)</Label>
+                        <CurrencyInput
+                          className="bg-gray-50 font-mono text-lg"
+                          value={formData.valorConcedente ?? 0}
+                          onValueChange={(num) => handleChange('valorConcedente', num)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-secti-muted">Valor do convenente (R$)</Label>
+                        <CurrencyInput
+                          className="bg-gray-50 font-mono text-lg"
+                          value={formData.valorConvenente ?? 0}
+                          onValueChange={(num) => handleChange('valorConvenente', num)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bloco Liberação de Recurso (apenas para convênios) */}
+                {isConvenioLike(formData.tipoRegistro) && (
+                  <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Liberação de Recurso</h3>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">Forma de liberação</Label>
+                      <RadioGroup
+                        value={formData.liberacaoRecurso ?? ''}
+                        onValueChange={(v) => handleChange('liberacaoRecurso' as any, v)}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-3"
+                      >
+                        <label
+                          className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                            formData.liberacaoRecurso === 'parcelaUnica'
+                              ? 'border-secti-primary bg-secti-primary/5'
+                              : 'border-secti-border bg-gray-50 hover:bg-gray-100'
+                          }`}
+                        >
+                          <RadioGroupItem value="parcelaUnica" />
+                          <div className="leading-tight">
+                            <p className="text-sm font-medium text-gray-800">Parcela única</p>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                            formData.liberacaoRecurso === 'duasParcelas'
+                              ? 'border-secti-primary bg-secti-primary/5'
+                              : 'border-secti-border bg-gray-50 hover:bg-gray-100'
+                          }`}
+                        >
+                          <RadioGroupItem value="duasParcelas" />
+                          <div className="leading-tight">
+                            <p className="text-sm font-medium text-gray-800">Duas parcelas</p>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                            formData.liberacaoRecurso === 'outros'
+                              ? 'border-secti-primary bg-secti-primary/5'
+                              : 'border-secti-border bg-gray-50 hover:bg-gray-100'
+                          }`}
+                        >
+                          <RadioGroupItem value="outros" />
+                          <div className="leading-tight">
+                            <p className="text-sm font-medium text-gray-800">Outros</p>
+                          </div>
+                        </label>
+                      </RadioGroup>
+                    </div>
+
+                    {formData.liberacaoRecurso === 'outros' && (
+                      <div className="space-y-2 rounded-lg border border-secti-border bg-gray-50 p-3">
+                        <Label className="text-xs font-bold uppercase text-secti-muted">Especificar</Label>
+                        <Input
+                          className="bg-white border-secti-border"
+                          value={formData.liberacaoRecursoObservacao ?? ''}
+                          onChange={(e) => handleChange('liberacaoRecursoObservacao' as any, e.target.value)}
+                          placeholder="Descreva como os recursos serão liberados"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Bloco de Aditivos/Supressão (Só aparece se estiver editando um existente) */}
                 {contract && (
@@ -526,14 +703,14 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
 
                     <div className="space-y-3 bg-white p-4 rounded-md border border-blue-100 shadow-sm">
                       <p className="font-semibold text-[11px] uppercase tracking-wider text-slate-400">Simulação Final</p>
-                      
+
                       <div className="flex justify-between items-center text-sm border-b border-dashed border-gray-200 pb-2">
                         <span className="text-gray-600">Novo Valor Atualizado:</span>
                         <span className="font-mono font-bold text-gray-900 text-base">
                           {formatCurrency((formData.valorAtual ?? 0) + ajuste)}
                         </span>
                       </div>
-                      
+
                       <div className="flex justify-between items-center text-sm pt-1">
                         <span className="text-green-700 font-medium">Novo Saldo Disponível:</span>
                         <span className="font-mono font-bold text-green-700 text-lg">
@@ -551,15 +728,15 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
         {/* FOOTER */}
         <SheetFooter className="p-6 bg-white border-t border-secti-border mt-auto z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <div className="flex w-full gap-4">
-            <Button 
-              variant="outline" 
-              onClick={onClose} 
+            <Button
+              variant="outline"
+              onClick={onClose}
               className="flex-1 border-gray-300 text-gray-600 uppercase text-xs font-bold hover:bg-gray-50 h-11"
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSubmit} 
+            <Button
+              onClick={handleSubmit}
               className="flex-1 text-white uppercase text-xs font-bold bg-[#0B2046] hover:bg-blue-900 transition-colors h-11"
             >
               {contract ? 'Salvar Alterações' : 'Confirmar Registro'}

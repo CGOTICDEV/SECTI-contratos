@@ -30,9 +30,10 @@ interface ContractDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract;
+  onRequestExtincao?: (contract: Contract) => void;
 }
 
-export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDetailsModalProps) {
+export function ContractDetailsModal({ isOpen, onClose, contract, onRequestExtincao }: ContractDetailsModalProps) {
   // mapear nomes de campo do contrato para rótulos amigáveis
   const fieldLabels: Record<string, string> = {
     numeroContrato: 'Nº Contrato',
@@ -54,6 +55,11 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
     numeroTermoCooperacaoTecnica: 'Nº Termo Coop.',
     numeroConvenio: 'Nº Convênio',
     convenente: 'Convenente',
+    interveniente: 'Interveniente',
+    formaRepasse: 'Forma de Repasse',
+    repasseCentralizado: 'Repasse Centralizado',
+    valorConcedente: 'Valor do Concedente',
+    valorConvenente: 'Valor do Convenente',
     termoAdesao: 'Termo de Adesão',
     apostilas: 'Apostilas',
     // adicionar outros se necessário
@@ -330,11 +336,20 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     </div>
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">
-                        {isConvenioType(contract.tipoRegistro) ? 'Convenente' : 'Empresa Contratada'}
+                        {isConvenioType(contract.tipoRegistro) ? 'Convenente / Interveniente' : 'Empresa Contratada'}
                       </span>
-                      <p className="text-sm text-gray-900 font-medium px-1">
-                        {contract.empresa || contract.convenente || 'Não informado'}
-                      </p>
+                      <div className="text-sm text-gray-900 font-medium px-1 space-y-1">
+                        {contract.convenente ? (
+                          <p>Convenente: {contract.convenente}</p>
+                        ) : contract.empresa ? (
+                          <p>Empresa: {contract.empresa}</p>
+                        ) : (
+                          <p>Não informado</p>
+                        )}
+                        {contract.interveniente && (
+                          <p className="text-sm text-gray-700">Interveniente: {contract.interveniente}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-1 pt-2">
@@ -475,7 +490,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     <DollarSign className="w-4 h-4 text-gray-400" /> Resumo Financeiro
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor Inicial</span>
                       <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorInicial)}</p>
@@ -487,6 +502,14 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     <div className="space-y-1">
                       <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Pago Acumulado</span>
                       <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorPagoAcumulado)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor do Concedente</span>
+                      <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorConcedente)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase text-secti-muted tracking-wider">Valor do Convenente</span>
+                      <p className="font-mono text-sm text-gray-800 truncate max-w-[200px]">{formatCurrency(contract.valorConvenente)}</p>
                     </div>
                   </div>
 
@@ -518,13 +541,24 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
 
         {/* FOOTER */}
         <SheetFooter className="p-6 bg-white border-t border-secti-border mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
-          <Button 
-            variant="outline" 
-            onClick={onClose} 
-            className="w-full border-gray-300 text-gray-700 uppercase text-xs font-bold hover:bg-gray-50 h-11 transition-colors"
-          >
-            Fechar Detalhes
-          </Button>
+          <div className="flex w-full gap-3">
+            {onRequestExtincao && (
+              <Button
+                variant="outline"
+                onClick={() => onRequestExtincao(contract)}
+                className="flex-1 border-red-300 text-red-700 uppercase text-xs font-bold hover:bg-red-50 h-11"
+              >
+                Registrar Extinção
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
+              onClick={onClose} 
+              className="flex-1 border-gray-300 text-gray-700 uppercase text-xs font-bold hover:bg-gray-50 h-11 transition-colors"
+            >
+              Fechar Detalhes
+            </Button>
+          </div>
         </SheetFooter>
 
       </SheetContent>

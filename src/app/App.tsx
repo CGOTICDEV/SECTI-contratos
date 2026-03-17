@@ -19,6 +19,7 @@ import { Badge } from './components/ui/badge';
 import { ContractsTable } from './components/ContractsTable';
 import { ContractModal } from './components/ContractModal';
 import { ContractDetailsModal } from './components/ContractDetailsModal';
+import { ExtincaoModal } from './components/ExtincaoModal';
 import { ApostilaModal } from './components/ApostilaModal';
 import { TermoAditivoModal } from './components/TermoAditivoModal';
 import { Login } from './components/Login';
@@ -44,7 +45,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from './components/ui/sidebar';
-import { Contract } from './types/contract';
+import { Contract, TermoAditivoDocument } from './types/contract';
 import { UserProfile } from './types/user';
 import { getContractStatus, computeChanges } from './utils/contract-helpers';
 import { Toaster, toast } from 'sonner';
@@ -390,6 +391,15 @@ function App() {
     setIsTermoAditivoOpen(true);
   };
 
+  // --- Extinção contratual modal ---
+  const [isExtincaoOpen, setIsExtincaoOpen] = useState(false);
+  const [extincaoContract, setExtincaoContract] = useState<Contract | null>(null);
+
+  const handleOpenExtincao = (c: Contract) => {
+    setExtincaoContract(c);
+    setIsExtincaoOpen(true);
+  };
+
   // keep arrays trimmed so the document remains under Firestore's 1 MB limit
   const MAX_HISTORY_ENTRIES = 300;
   const MAX_APOSTILAS = 200;
@@ -618,6 +628,81 @@ function App() {
       } else {
         toast.error('Falha ao salvar termo aditivo.');
       }
+    }
+  };
+
+  const handleSaveExtincao = async (
+    id: string,
+    tipo: 'termoRecisaoUnilateral' | 'termoRecisaoAmigavel',
+    note: string,
+    dataExtincao?: string,
+    documents?: TermoAditivoDocument[]
+  ) => {
+    try {
+      if (!extincaoContract) return;
+      const ref = doc(db, 'contracts', id);
+      const current = extincaoContract;
+      const now = new Date().toISOString();
+
+      const fecha = dataExtincao || current.vigenciaAtual || new Date().toISOString().slice(0, 10);
+
+      const newEntry: any = {
+        timestamp: now,
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
+        tipo,
+        note,
+        ...(documents && documents.length > 0 ? { documents } : {}),
+      };
+
+      let newTermos = [...(current.termosAditivos || []), newEntry];
+      if (newTermos.length > MAX_APOSTILAS) {
+        newTermos = newTermos.slice(-MAX_APOSTILAS);
+      }
+
+      const updated: Contract = {
+        ...current,
+        situacao: 'Vencido',
+        vigenciaAtual: fecha,
+        termosAditivos: newTermos,
+      };
+
+      const changes = computeChanges(current, updated);
+      changes.push({
+        field: 'termosAditivos',
+        before: current.termosAditivos ? current.termosAditivos.length : 0,
+        after: newTermos.length,
+      });
+
+      const historyEntry: any = {
+        timestamp: now,
+        user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
+        changes,
+      };
+
+      let historyToWrite: any = historyEntry;
+      if (current.history) {
+        const arr = [...current.history, historyEntry];
+        historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
+      }
+
+      const payload: any = {
+        situacao: 'Vencido',
+        vigenciaAtual: fecha,
+        termosAditivos: newTermos,
+        history: historyToWrite,
+      };
+
+      await updateDoc(ref, payload as any);
+
+      setContracts((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      if (extincaoContract && extincaoContract.id === id) {
+        setExtincaoContract(updated);
+      }
+
+      toast.success('Extinção contratual registrada com sucesso.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao registrar extinção contratual.');
     }
   };
 
@@ -1124,6 +1209,13 @@ function App() {
               onSave={handleSaveTermoAditivo}
             />
 
+            <ExtincaoModal
+              isOpen={isExtincaoOpen}
+              onClose={() => setIsExtincaoOpen(false)}
+              contract={extincaoContract}
+              onSave={handleSaveExtincao}
+            />
+
             {/* tutorial modal for authenticated users */}
             <TutorialModal isOpen={isTutorialOpen} onClose={() => setIsTutorialOpen(false)} />
 
@@ -1135,6 +1227,11 @@ function App() {
                   setViewingContract(undefined);
                 }}
                 contract={viewingContract}
+                onRequestExtincao={
+                  userProfile && (userProfile.role === 'ccc' || userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                    ? handleOpenExtincao
+                    : undefined
+                }
               />
             )}
           </div>

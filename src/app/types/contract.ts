@@ -105,6 +105,8 @@ export interface Contract {
   /** lista de termos aditivos associados ao contrato */
   termosAditivos?: TermoAditivo[];
   garantia?: string;
+  /** tipo de garantia contratual */
+  garantiaTipo?: 'tecnica' | 'valor' | 'tecnicaEValor';
 
   /** lista de e-mails de quem alterou o contrato em algum momento */
   emailEditor?: string[];
@@ -114,7 +116,17 @@ export interface Contract {
   numeroTermoCooperacaoTecnica?: string;
   numeroConvenio?: string;
   convenente?: string;
+  interveniente?: string;
+  // campos financeiros de convênio
+  // forma de repasse financeira (aplicável em convênios)
+  repasse?: boolean;
+  descentralizacaoCredito?: boolean;
+  valorConcedente?: number;
+  valorConvenente?: number;
   termoAdesao?: string;
+  // liberação de recursos (específico para convênios)
+  liberacaoRecurso?: 'parcelaUnica' | 'duasParcelas' | 'outros';
+  liberacaoRecursoObservacao?: string;
 
   history?: HistoryEntry[];
   
@@ -127,6 +139,8 @@ export interface Contract {
 
   /** lista de uids que dispensaram ou leram notificações sobre este contrato */
   readBy?: string[];
+  /** áreas e responsáveis pelo acompanhamento do contrato */
+  responsaveisAcompanhamento?: { area: string; responsavel: string }[];
 }
 
 export type StatusType = 'critical' | 'warning' | 'safe' | 'expired';

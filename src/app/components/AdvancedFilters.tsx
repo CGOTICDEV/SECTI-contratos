@@ -97,9 +97,9 @@ export function AdvancedFiltersPanel({
         </SheetHeader>
 
         <div className="space-y-8 py-6">
-          {/* Tipo de Registro */}
+          {/* Modalidade da Licitação */}
           <div className="space-y-3">
-            <Label htmlFor="tipoRegistro">Tipo de Registro</Label>
+            <Label htmlFor="tipoRegistro">Modalidade da Licitação</Label>
             <Select
               value={localFilters.tipoRegistro || 'todos'}
               onValueChange={(value) => handleFieldChange('tipoRegistro', value)}
