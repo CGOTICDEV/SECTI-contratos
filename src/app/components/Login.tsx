@@ -208,7 +208,7 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
       <div
         className="absolute inset-0 z-0 transition-all duration-700 ease-in-out opacity-60"
         style={{
-          backgroundImage: 'url("https://scontent.fssa32-1.fna.fbcdn.net/v/t39.30808-6/639857635_1369437978556046_4516167643094290937_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=2a1932&_nc_ohc=N8rZ_2shfzQQ7kNvwEs5-Y0&_nc_oc=AdkOrqgijE7d4jeAgzqNZ-Y38L6JLwNT1ahfGIo_7bJHlfUw3JLdZlzwaeUr5FG05lo&_nc_zt=23&_nc_ht=scontent.fssa32-1.fna&_nc_gid=K5qOVfZfCv1-cnxAlhbM5Q&oh=00_Afu8sU_Oh5ILwlq1iARcnVz4IaVNlw6rCg48bbilDzmZAQ&oe=69A24234")',
+          backgroundImage: 'url("/network_communications_background_with_flowing_cyber_dots_1609.jpg")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           clipPath: 'polygon(0 0, 100% 0, 0 100%)',
