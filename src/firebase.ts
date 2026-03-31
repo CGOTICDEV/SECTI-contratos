@@ -48,13 +48,20 @@ export function subscribeContracts(
   });
 }
 
+function sanitizeFirestoreData(data: any) {
+  if (!data || typeof data !== 'object') return data;
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  );
+}
+
 export function addContract(contract: any) {
-  return addDoc(contractsCollection, contract);
+  return addDoc(contractsCollection, sanitizeFirestoreData(contract));
 }
 
 export function updateContract(id: string, contract: any) {
   const ref = doc(db, 'contracts', id);
-  return updateDoc(ref, contract);
+  return updateDoc(ref, sanitizeFirestoreData(contract));
 }
 
 const usersCollection = collection(db, 'users');

@@ -103,6 +103,12 @@ function App() {
   const [apostilaContract, setApostilaContract] = useState<Contract | null>(null);
   const [isApostilaOpen, setIsApostilaOpen] = useState(false);
 
+  const sanitizeFirestoreData = <T extends object>(data: T) => {
+    return Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    ) as unknown as T;
+  };
+
   useEffect(() => {
     let unsubUser: (() => void) | undefined;
 
@@ -334,12 +340,14 @@ function App() {
             const harr = [...editingContract.history, entry];
             historyToWrite = harr.slice(-MAX_HISTORY_ENTRIES);
           }
-          await updateDoc(ref, {
+
+          const sanitizedUpdate = sanitizeFirestoreData({
             ...contractData,
-            // also store the modified editor list
             ...(after.emailEditor ? { emailEditor: after.emailEditor } : {}),
             history: historyToWrite,
-          } as any);
+          });
+
+          await updateDoc(ref, sanitizedUpdate as any);
           toast.success('Sincronização concluída: Registro atualizado.');
         } else {
           toast.info('Nenhuma alteração detectada.');
@@ -365,7 +373,9 @@ function App() {
           changes,
         };
         newContract.history = [createdEntry];
-        await addDoc(collection(db, 'contracts'), newContract);
+
+        const sanitizedNewContract = sanitizeFirestoreData(newContract);
+        await addDoc(collection(db, 'contracts'), sanitizedNewContract as any);
         toast.success('Novo registro integrado com sucesso.');
       }
     } catch (err) {
