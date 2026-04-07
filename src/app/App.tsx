@@ -11,7 +11,6 @@ import {
   User,
   HelpCircle,
   BarChart3,
-  Bell,
 } from 'lucide-react';
 // KPI cards were replaced by a tabbed filter control
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -70,11 +69,152 @@ import {
   updateDoc,
   doc,
   onSnapshot,
-  arrayUnion,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  documentId,
+  QueryDocumentSnapshot,
+  DocumentData,
 } from 'firebase/firestore';
 
 type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
 type ViewMode = 'dashboard' | 'charts' | 'profile';
+
+const TABLE_PAGE_SIZE = 25;
+const TABLE_SCAN_BATCH_SIZE = 150;
+
+interface TableFilterContext {
+  activeFilter: FilterType;
+  searchQuery: string;
+  advancedFilters: AdvancedFilters;
+}
+
+interface TablePaginationCache {
+  signature: string;
+  filteredMatches: Contract[];
+  lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+  reachedEnd: boolean;
+}
+
+const normalizeContractSnapshot = (snapshotDoc: QueryDocumentSnapshot<DocumentData>): Contract => {
+  const raw: any = { id: snapshotDoc.id, ...(snapshotDoc.data() as any) };
+
+  // migrate legacy single-string apostila into new array structure
+  if (raw.apostila && !raw.apostilas) {
+    raw.apostilas = [
+      {
+        timestamp: '',
+        note: raw.apostila,
+      },
+    ];
+  }
+
+  return raw as Contract;
+};
+
+const contractMatchesFilters = (contract: Contract, context: TableFilterContext) => {
+  const { activeFilter, searchQuery, advancedFilters } = context;
+
+  if (activeFilter !== 'Todos') {
+    const status = getContractStatus(contract);
+    const days = status.daysRemaining;
+
+    if (activeFilter === '<15' && !(days < 15 || status.type === 'expired')) {
+      return false;
+    }
+
+    if (activeFilter === '<30' && !(days < 30 && days >= 15)) {
+      return false;
+    }
+
+    if (activeFilter === '<60' && !(days < 60 && days >= 30)) {
+      return false;
+    }
+
+    if (activeFilter === '<90' && !(days < 90 && days >= 60)) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.tipoRegistro && advancedFilters.tipoRegistro !== 'todos') {
+    if (contract.tipoRegistro !== advancedFilters.tipoRegistro) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.situacao && advancedFilters.situacao !== 'todos') {
+    if (contract.situacao !== advancedFilters.situacao) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.gestor) {
+    if (!contract.gestor?.toLowerCase().includes(advancedFilters.gestor.toLowerCase())) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.fiscal) {
+    if (!contract.fiscal?.toLowerCase().includes(advancedFilters.fiscal.toLowerCase())) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.empresa || advancedFilters.convenente) {
+    const termo = (advancedFilters.empresa || advancedFilters.convenente || '').toLowerCase();
+    const empresaMatch = contract.empresa?.toLowerCase().includes(termo);
+    const convenenteMatch = contract.convenente?.toLowerCase().includes(termo);
+
+    if (!empresaMatch && !convenenteMatch) {
+      return false;
+    }
+  }
+
+  if (advancedFilters.valorMin !== undefined && (contract.valorAtual || 0) < advancedFilters.valorMin) {
+    return false;
+  }
+
+  if (advancedFilters.valorMax !== undefined && (contract.valorAtual || 0) > advancedFilters.valorMax) {
+    return false;
+  }
+
+  if (advancedFilters.diasVencimentoMin !== undefined || advancedFilters.diasVencimentoMax !== undefined) {
+    const status = getContractStatus(contract);
+    const days = status.daysRemaining;
+
+    if (advancedFilters.diasVencimentoMin !== undefined && days < advancedFilters.diasVencimentoMin) {
+      return false;
+    }
+
+    if (advancedFilters.diasVencimentoMax !== undefined && days > advancedFilters.diasVencimentoMax) {
+      return false;
+    }
+  }
+
+  if (searchQuery.trim()) {
+    const queryText = searchQuery.toLowerCase();
+
+    const matchesSearch =
+      contract.empresa?.toLowerCase().includes(queryText) ||
+      contract.numeroContrato?.toLowerCase().includes(queryText) ||
+      contract.objeto?.toLowerCase().includes(queryText) ||
+      contract.gestor?.toLowerCase().includes(queryText) ||
+      contract.fiscal?.toLowerCase().includes(queryText) ||
+      (contract.convenente ? contract.convenente.toLowerCase().includes(queryText) : false) ||
+      (contract.numeroConvenio ? contract.numeroConvenio.toLowerCase().includes(queryText) : false) ||
+      (contract.numeroAcordoCooperacaoTecnica ? contract.numeroAcordoCooperacaoTecnica.toLowerCase().includes(queryText) : false) ||
+      (contract.numeroTermoCooperacaoTecnica ? contract.numeroTermoCooperacaoTecnica.toLowerCase().includes(queryText) : false) ||
+      (contract.apostilas ? contract.apostilas.some((a) => a.note.toLowerCase().includes(queryText)) : false);
+
+    if (!matchesSearch) {
+      return false;
+    }
+  }
+
+  return true;
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -88,6 +228,18 @@ function App() {
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({});
   const [selectedContractIds, setSelectedContractIds] = useState<Set<string>>(new Set());
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [tableContracts, setTableContracts] = useState<Contract[]>([]);
+  const [tableCurrentPage, setTableCurrentPage] = useState(1);
+  const [tableHasNextPage, setTableHasNextPage] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableReloadToken, setTableReloadToken] = useState(0);
+  const tableCacheRef = useRef<TablePaginationCache>({
+    signature: '',
+    filteredMatches: [],
+    lastDoc: null,
+    reachedEnd: false,
+  });
+  const tableRequestIdRef = useRef(0);
   
   // the tabs component uses string values matching the FilterType union
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -156,19 +308,7 @@ function App() {
     if (!isAuthenticated) return;
     const q = collection(db, 'contracts');
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: Contract[] = snapshot.docs.map((d) => {
-        const raw: any = { id: d.id, ...(d.data() as any) };
-        // migrate legacy single-string apostila into new array structure
-        if (raw.apostila && !raw.apostilas) {
-          raw.apostilas = [
-            {
-              timestamp: '',
-              note: raw.apostila,
-            },
-          ];
-        }
-        return raw as Contract;
-      });
+      const data: Contract[] = snapshot.docs.map(normalizeContractSnapshot);
       setContracts(data);
     });
     return unsubscribe;
@@ -197,97 +337,160 @@ function App() {
     return { total: contracts.length, less15, less30, less60, less90 };
   }, [contracts]);
 
-  const filteredContracts = useMemo(() => {
-    let filtered = contracts;
+  const tableFilterContext = useMemo<TableFilterContext>(() => {
+    return {
+      activeFilter,
+      searchQuery,
+      advancedFilters,
+    };
+  }, [activeFilter, searchQuery, advancedFilters]);
 
-    if (activeFilter !== 'Todos') {
-      filtered = filtered.filter((contract) => {
-        const status = getContractStatus(contract);
-        const days = status.daysRemaining;
-        switch (activeFilter) {
-          case '<15':
-            return days < 15 || status.type === 'expired';
-          case '<30':
-            return days < 30 && days >= 15;
-          case '<60':
-            return days < 60 && days >= 30;
-          case '<90':
-            return days < 90 && days >= 60;
-          default:
-            return true;
+  const tableFilterSignature = useMemo(() => {
+    return JSON.stringify({
+      activeFilter: tableFilterContext.activeFilter,
+      searchQuery: tableFilterContext.searchQuery.trim().toLowerCase(),
+      advancedFilters: {
+        tipoRegistro: tableFilterContext.advancedFilters.tipoRegistro || '',
+        situacao: tableFilterContext.advancedFilters.situacao || '',
+        gestor: tableFilterContext.advancedFilters.gestor || '',
+        fiscal: tableFilterContext.advancedFilters.fiscal || '',
+        empresa: tableFilterContext.advancedFilters.empresa || '',
+        convenente: tableFilterContext.advancedFilters.convenente || '',
+        valorMin: tableFilterContext.advancedFilters.valorMin === undefined ? null : tableFilterContext.advancedFilters.valorMin,
+        valorMax: tableFilterContext.advancedFilters.valorMax === undefined ? null : tableFilterContext.advancedFilters.valorMax,
+        diasVencimentoMin:
+          tableFilterContext.advancedFilters.diasVencimentoMin === undefined
+            ? null
+            : tableFilterContext.advancedFilters.diasVencimentoMin,
+        diasVencimentoMax:
+          tableFilterContext.advancedFilters.diasVencimentoMax === undefined
+            ? null
+            : tableFilterContext.advancedFilters.diasVencimentoMax,
+      },
+    });
+  }, [tableFilterContext]);
+
+  const invalidateTableCache = (resetToFirstPage = false) => {
+    tableCacheRef.current = {
+      signature: '',
+      filteredMatches: [],
+      lastDoc: null,
+      reachedEnd: false,
+    };
+    setTableReloadToken((prev) => prev + 1);
+    if (resetToFirstPage) {
+      setTableCurrentPage(1);
+    }
+  };
+
+  useEffect(() => {
+    setTableCurrentPage(1);
+  }, [tableFilterSignature]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      tableCacheRef.current = {
+        signature: '',
+        filteredMatches: [],
+        lastDoc: null,
+        reachedEnd: false,
+      };
+      setTableContracts([]);
+      setTableCurrentPage(1);
+      setTableHasNextPage(false);
+      setTableLoading(false);
+      return;
+    }
+
+    const requestId = tableRequestIdRef.current + 1;
+    tableRequestIdRef.current = requestId;
+    let isCancelled = false;
+
+    const loadTablePage = async () => {
+      setTableLoading(true);
+
+      try {
+        const cache = tableCacheRef.current;
+        if (cache.signature !== tableFilterSignature) {
+          cache.signature = tableFilterSignature;
+          cache.filteredMatches = [];
+          cache.lastDoc = null;
+          cache.reachedEnd = false;
         }
-      });
-    }
 
-    // Filtros avançados
-    if (advancedFilters.tipoRegistro && advancedFilters.tipoRegistro !== 'todos') {
-      filtered = filtered.filter(c => c.tipoRegistro === advancedFilters.tipoRegistro);
-    }
+        const requiredMatches = tableCurrentPage * TABLE_PAGE_SIZE + 1;
 
-    if (advancedFilters.situacao && advancedFilters.situacao !== 'todos') {
-      filtered = filtered.filter(c => c.situacao === advancedFilters.situacao);
-    }
+        while (cache.filteredMatches.length < requiredMatches && !cache.reachedEnd) {
+          const pageQuery = cache.lastDoc
+            ? query(
+                collection(db, 'contracts'),
+                orderBy(documentId()),
+                startAfter(cache.lastDoc),
+                limit(TABLE_SCAN_BATCH_SIZE)
+              )
+            : query(collection(db, 'contracts'), orderBy(documentId()), limit(TABLE_SCAN_BATCH_SIZE));
 
-    if (advancedFilters.gestor) {
-      filtered = filtered.filter(c => 
-        c.gestor?.toLowerCase().includes(advancedFilters.gestor!.toLowerCase())
-      );
-    }
+          const snapshot = await getDocs(pageQuery);
 
-    if (advancedFilters.fiscal) {
-      filtered = filtered.filter(c => 
-        c.fiscal?.toLowerCase().includes(advancedFilters.fiscal!.toLowerCase())
-      );
-    }
+          if (isCancelled || requestId !== tableRequestIdRef.current) {
+            return;
+          }
 
-    if (advancedFilters.empresa || advancedFilters.convenente) {
-      const termo = (advancedFilters.empresa || advancedFilters.convenente || '').toLowerCase();
-      filtered = filtered.filter(c => 
-        c.empresa?.toLowerCase().includes(termo) || c.convenente?.toLowerCase().includes(termo)
-      );
-    }
+          if (snapshot.empty) {
+            cache.reachedEnd = true;
+            break;
+          }
 
-    if (advancedFilters.valorMin !== undefined) {
-      filtered = filtered.filter(c => (c.valorAtual || 0) >= advancedFilters.valorMin!);
-    }
+          cache.lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
-    if (advancedFilters.valorMax !== undefined) {
-      filtered = filtered.filter(c => (c.valorAtual || 0) <= advancedFilters.valorMax!);
-    }
+          snapshot.docs.forEach((contractDoc) => {
+            const contract = normalizeContractSnapshot(contractDoc);
+            if (contractMatchesFilters(contract, tableFilterContext)) {
+              cache.filteredMatches.push(contract);
+            }
+          });
 
-    if (advancedFilters.diasVencimentoMin !== undefined || advancedFilters.diasVencimentoMax !== undefined) {
-      filtered = filtered.filter(c => {
-        const status = getContractStatus(c);
-        const days = status.daysRemaining;
-        if (advancedFilters.diasVencimentoMin !== undefined && days < advancedFilters.diasVencimentoMin) {
-          return false;
+          if (snapshot.size < TABLE_SCAN_BATCH_SIZE) {
+            cache.reachedEnd = true;
+          }
         }
-        if (advancedFilters.diasVencimentoMax !== undefined && days > advancedFilters.diasVencimentoMax) {
-          return false;
+
+        if (isCancelled || requestId !== tableRequestIdRef.current) {
+          return;
         }
-        return true;
-      });
-    }
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (contract) =>
-          contract.empresa.toLowerCase().includes(query) ||
-          contract.numeroContrato.toLowerCase().includes(query) ||
-          contract.objeto.toLowerCase().includes(query) ||
-          contract.gestor.toLowerCase().includes(query) ||
-          contract.fiscal.toLowerCase().includes(query) ||
-          (contract.convenente ? contract.convenente.toLowerCase().includes(query) : false) ||
-          (contract.numeroConvenio ? contract.numeroConvenio.toLowerCase().includes(query) : false) ||
-          (contract.numeroAcordoCooperacaoTecnica ? contract.numeroAcordoCooperacaoTecnica.toLowerCase().includes(query) : false) ||
-          (contract.numeroTermoCooperacaoTecnica ? contract.numeroTermoCooperacaoTecnica.toLowerCase().includes(query) : false) ||
-          (contract.apostilas ? contract.apostilas.some(a => a.note.toLowerCase().includes(query)) : false)
-      );
-    }
+        const startIndex = (tableCurrentPage - 1) * TABLE_PAGE_SIZE;
+        const endIndex = startIndex + TABLE_PAGE_SIZE;
+        const currentRows = cache.filteredMatches.slice(startIndex, endIndex);
 
-    return filtered;
-  }, [contracts, activeFilter, searchQuery, advancedFilters]);
+        setTableContracts(currentRows);
+        setTableHasNextPage(cache.filteredMatches.length > endIndex);
+
+        if (currentRows.length === 0 && tableCurrentPage > 1) {
+          setTableCurrentPage((prev) => Math.max(1, prev - 1));
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Falha ao carregar os registros da tabela.');
+      } finally {
+        if (!isCancelled && requestId === tableRequestIdRef.current) {
+          setTableLoading(false);
+        }
+      }
+    };
+
+    void loadTablePage();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    isAuthenticated,
+    tableCurrentPage,
+    tableFilterSignature,
+    tableReloadToken,
+    tableFilterContext,
+  ]);
 
   // Extrair gestores e fiscais únicos para os filtros
   const uniqueGestores = useMemo(() => {
@@ -378,6 +581,8 @@ function App() {
         await addDoc(collection(db, 'contracts'), sanitizedNewContract as any);
         toast.success('Novo registro integrado com sucesso.');
       }
+
+      invalidateTableCache(true);
     } catch (err) {
       console.error(err);
       toast.error('Falha ao salvar no banco de dados.');
@@ -491,6 +696,7 @@ function App() {
       } as any);
       toast.success('Apostila registrada com sucesso.');
       setApostilaContract(null);
+      invalidateTableCache();
     } catch (err) {
       console.error(err);
       toast.error('Falha ao salvar apostila.');
@@ -630,6 +836,7 @@ function App() {
       }
 
       toast.success('Termo aditivo registrado com sucesso.');
+      invalidateTableCache();
     } catch (err: any) {
       console.error(err);
       const errorMsg = err?.message || 'Falha ao salvar termo aditivo.';
@@ -710,6 +917,7 @@ function App() {
       }
 
       toast.success('Extinção contratual registrada com sucesso.');
+      invalidateTableCache();
     } catch (err) {
       console.error(err);
       toast.error('Falha ao registrar extinção contratual.');
@@ -1151,24 +1359,52 @@ function App() {
                     {/* TABLE AREA */}
                     <div className="bg-white rounded-lg border border-secti-border shadow-sm overflow-x-auto w-full">
                       <div className="min-w-[800px]">
-                        <ContractsTable
-                          contracts={filteredContracts}
-                          onEdit={
-                            userProfile &&
-                            (userProfile.role === 'gestor' || userProfile.role === 'fiscal' || userProfile.role === 'ccc')
-                              ? (c) => { setEditingContract(c); setIsModalOpen(true); }
-                              : undefined
-                          }
-                          onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
-                          onAddApostila={
-                            userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
-                          }
-                          onAddTermoAditivo={
-                            userProfile && (userProfile.role === 'ccc' || userProfile.role === 'gestor' || userProfile.role === 'fiscal')
-                              ? handleAddTermoAditivoClick
-                              : undefined
-                          }
-                        />
+                        {tableLoading && tableContracts.length === 0 ? (
+                          <div className="p-8 text-sm text-secti-muted">Carregando registros...</div>
+                        ) : (
+                          <ContractsTable
+                            contracts={tableContracts}
+                            allContracts={contracts}
+                            onEdit={
+                              userProfile &&
+                              (userProfile.role === 'gestor' || userProfile.role === 'fiscal' || userProfile.role === 'ccc')
+                                ? (c) => { setEditingContract(c); setIsModalOpen(true); }
+                                : undefined
+                            }
+                            onView={(c) => { setViewingContract(c); setIsDetailsOpen(true); }}
+                            onAddApostila={
+                              userProfile?.role === 'ccc' ? handleAddApostilaClick : undefined
+                            }
+                            onAddTermoAditivo={
+                              userProfile && (userProfile.role === 'ccc' || userProfile.role === 'gestor' || userProfile.role === 'fiscal')
+                                ? handleAddTermoAditivoClick
+                                : undefined
+                            }
+                          />
+                        )}
+                      </div>
+                      <div className="border-t border-gray-100 px-4 py-3 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p className="text-xs sm:text-sm text-secti-muted">
+                          Página {tableCurrentPage} • {tableContracts.length} registro(s) nesta página
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={tableCurrentPage === 1 || tableLoading}
+                            onClick={() => setTableCurrentPage((prev) => Math.max(1, prev - 1))}
+                          >
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!tableHasNextPage || tableLoading}
+                            onClick={() => setTableCurrentPage((prev) => prev + 1)}
+                          >
+                            Próxima
+                          </Button>
+                        </div>
                       </div>
                     </div>
 

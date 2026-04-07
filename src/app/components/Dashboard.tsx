@@ -15,7 +15,9 @@ import {
 import { Contract } from '../types/contract';
 import { getContractStatus } from '../utils/contract-helpers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { FileText, AlertTriangle, Calendar } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react';
+import { Button } from './ui/button';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   contracts: Contract[];
@@ -99,10 +101,41 @@ export function Dashboard({ contracts }: DashboardProps) {
     };
   }, [contracts]);
 
-  const COLORS = ['#DC2626', '#EA580C', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'];
+  const handleExportDashboardSpreadsheet = async () => {
+    if (contracts.length === 0) {
+      toast.error('Não há registros para exportar.');
+      return;
+    }
+
+    try {
+      const { exportDashboardToExcel } = await import('../utils/excel');
+      await exportDashboardToExcel(contracts);
+      toast.success('Planilha do Dashboard emitida com sucesso.');
+    } catch (error) {
+      console.error('Erro ao emitir planilha do dashboard', error);
+      toast.error('Não foi possível emitir a planilha do dashboard.');
+    }
+  };
 
   return (
     <div className="space-y-6 p-6 bg-gray-50">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Dashboard Visual</h2>
+          <p className="text-sm text-slate-500">
+            Acompanhe os indicadores e emita planilhas formatadas do painel.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={handleExportDashboardSpreadsheet}
+          className="bg-[#0B2046] text-white hover:bg-[#16356f]"
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Emitir Planilha
+        </Button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

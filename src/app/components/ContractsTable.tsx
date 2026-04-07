@@ -15,13 +15,21 @@ import { exportContractsToExcel } from '../utils/excel';
 
 interface ContractsTableProps {
   contracts: Contract[];
+  allContracts?: Contract[];
   onEdit?: (contract: Contract) => void;
   onView?: (contract: Contract) => void;
   onAddApostila?: (contract: Contract) => void;
   onAddTermoAditivo?: (contract: Contract) => void;
 }
 
-export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAddTermoAditivo }: ContractsTableProps) {
+export function ContractsTable({
+  contracts,
+  allContracts,
+  onEdit,
+  onView,
+  onAddApostila,
+  onAddTermoAditivo,
+}: ContractsTableProps) {
   if (contracts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-lg border border-secti-border shadow-sm">
@@ -37,6 +45,7 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
   }
 
   const hasConvenios = contracts.some((c) => isConvenioType(c.tipoRegistro));
+  const contractsToExport = allContracts && allContracts.length > 0 ? allContracts : contracts;
 
   return (
     <div className="bg-white rounded-lg border border-secti-border overflow-hidden shadow-sm flex flex-col">
@@ -53,11 +62,11 @@ export function ContractsTable({ contracts, onEdit, onView, onAddApostila, onAdd
         </div>
         <Button
           size="sm"
-          onClick={() => exportContractsToExcel(contracts)}
+          onClick={() => exportContractsToExcel(contractsToExport)}
           className="h-9 gap-2 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors"
         >
           <Download className="w-4 h-4" />
-          Exportar Excel
+          Exportar Excel (Todos)
         </Button>
       </div>
 
