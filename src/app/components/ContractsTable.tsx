@@ -57,7 +57,7 @@ export function ContractsTable({
             Registros Encontrados
           </h2>
           <Badge variant="outline" className="bg-white text-secti-primary font-mono border-gray-200">
-            {contracts.length}
+            {allContracts && allContracts.length > 0 ? allContracts.length : contracts.length}
           </Badge>
         </div>
         <Button

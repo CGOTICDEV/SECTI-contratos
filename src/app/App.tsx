@@ -11,6 +11,9 @@ import {
   User,
   HelpCircle,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 // KPI cards were replaced by a tabbed filter control
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -32,6 +35,7 @@ import { SessionManager } from './components/SessionManager';
 import { HelpPanel } from './components/HelpSystem';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import {
   Sidebar,
   SidebarContent,
@@ -82,7 +86,6 @@ import {
 type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
 type ViewMode = 'dashboard' | 'charts' | 'profile';
 
-const TABLE_PAGE_SIZE = 25;
 const TABLE_SCAN_BATCH_SIZE = 150;
 
 interface TableFilterContext {
@@ -232,6 +235,8 @@ function App() {
   const [tableCurrentPage, setTableCurrentPage] = useState(1);
   const [tableHasNextPage, setTableHasNextPage] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
+  const [tablePageSize, setTablePageSize] = useState(25);
+  const [tableTotalPages, setTableTotalPages] = useState(1);
   const [tableReloadToken, setTableReloadToken] = useState(0);
   const tableCacheRef = useRef<TablePaginationCache>({
     signature: '',
@@ -383,6 +388,11 @@ function App() {
     }
   };
 
+  const handlePageSizeChange = (newSize: string) => {
+    setTablePageSize(Number(newSize));
+    setTableCurrentPage(1);
+  };
+
   useEffect(() => {
     setTableCurrentPage(1);
   }, [tableFilterSignature]);
@@ -418,7 +428,7 @@ function App() {
           cache.reachedEnd = false;
         }
 
-        const requiredMatches = tableCurrentPage * TABLE_PAGE_SIZE + 1;
+        const requiredMatches = tableCurrentPage * tablePageSize + 1;
 
         while (cache.filteredMatches.length < requiredMatches && !cache.reachedEnd) {
           const pageQuery = cache.lastDoc
@@ -459,12 +469,15 @@ function App() {
           return;
         }
 
-        const startIndex = (tableCurrentPage - 1) * TABLE_PAGE_SIZE;
-        const endIndex = startIndex + TABLE_PAGE_SIZE;
+        const startIndex = (tableCurrentPage - 1) * tablePageSize;
+        const endIndex = startIndex + tablePageSize;
         const currentRows = cache.filteredMatches.slice(startIndex, endIndex);
 
         setTableContracts(currentRows);
         setTableHasNextPage(cache.filteredMatches.length > endIndex);
+        setTableTotalPages(cache.reachedEnd
+          ? Math.max(1, Math.ceil(cache.filteredMatches.length / tablePageSize))
+          : Math.max(1, Math.ceil(cache.filteredMatches.length / tablePageSize)));
 
         if (currentRows.length === 0 && tableCurrentPage > 1) {
           setTableCurrentPage((prev) => Math.max(1, prev - 1));
@@ -487,6 +500,7 @@ function App() {
   }, [
     isAuthenticated,
     tableCurrentPage,
+    tablePageSize,
     tableFilterSignature,
     tableReloadToken,
     tableFilterContext,
@@ -1091,6 +1105,20 @@ function App() {
   // Helper para nome no Header
   const firstName = userProfile?.displayName?.split(' ')[0] || 'Usuário';
 
+  const getPageNumbers = (current: number, total: number): (number | 'ellipsis')[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | 'ellipsis')[] = [1];
+    if (current > 3) pages.push('ellipsis');
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (current < total - 2) pages.push('ellipsis');
+    pages.push(total);
+    return pages;
+  };
+
   return (
     <>
       <Toaster position="top-right" richColors />
@@ -1384,25 +1412,62 @@ function App() {
                         )}
                       </div>
                       <div className="border-t border-gray-100 px-4 py-3 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <p className="text-xs sm:text-sm text-secti-muted">
-                          Página {tableCurrentPage} • {tableContracts.length} registro(s) nesta página
-                        </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
+                          <p className="text-xs sm:text-sm text-secti-muted">
+                            Página {tableCurrentPage} de {tableTotalPages} • {tableContracts.length} registro(s)
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-secti-muted">Exibir</span>
+                            <Select
+                              value={String(tablePageSize)}
+                              onValueChange={handlePageSizeChange}
+                            >
+                              <SelectTrigger className="h-8 w-16 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="25">25</SelectItem>
+                                <SelectItem value="50">50</SelectItem>
+                                <SelectItem value="100">100</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={tableCurrentPage === 1 || tableLoading}
                             onClick={() => setTableCurrentPage((prev) => Math.max(1, prev - 1))}
                           >
-                            Anterior
+                            <ChevronLeft className="w-4 h-4" />
+                            <span className="hidden sm:inline ml-1">Anterior</span>
                           </Button>
+                          {getPageNumbers(tableCurrentPage, tableTotalPages).map((page, idx) =>
+                            page === 'ellipsis' ? (
+                              <span key={`ellipsis-${idx}`} className="px-1 text-secti-muted select-none">...</span>
+                            ) : (
+                              <Button
+                                key={page}
+                                variant={page === tableCurrentPage ? "default" : "outline"}
+                                size="sm"
+                                className="min-w-9"
+                                disabled={tableLoading}
+                                onClick={() => setTableCurrentPage(page)}
+                              >
+                                {page}
+                              </Button>
+                            )
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={!tableHasNextPage || tableLoading}
                             onClick={() => setTableCurrentPage((prev) => prev + 1)}
                           >
-                            Próxima
+                            <span className="hidden sm:inline mr-1">Próxima</span>
+                            <ChevronRight className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
