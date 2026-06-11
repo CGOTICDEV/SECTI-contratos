@@ -21,9 +21,10 @@ import {
   SelectValue,
 } from './ui/select';
 import { Contract } from '../types/contract';
-import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake } from 'lucide-react';
+import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake, Sparkles } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { formatCurrency, formatDate } from '../utils/contract-helpers';
+import { GuiaPanel } from './GuiaPanel';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -133,6 +134,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
 
   const [formData, setFormData] = useState<Partial<Contract>>(computeInitial());
   const [ajuste, setAjuste] = useState<number>(0);
+  const [guiaOpen, setGuiaOpen] = useState(false);
 
   const numericFields: Array<keyof Contract> = [
     'valorInicial',
@@ -239,6 +241,11 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
     setFormData((prev) => ({ ...prev, garantiaTipo: nextTipo }));
   };
 
+  const handleGuiaSuggestion = (data: Partial<Contract>, _resumo: string) => {
+    setFormData(prev => ({ ...prev, ...data }));
+    setGuiaOpen(false);
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="sm:max-w-xl w-full border-l border-secti-border bg-[#F8FAFC] p-0 flex flex-col shadow-2xl">
@@ -254,10 +261,30 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
           <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
             ID: {contract?.id || 'NOVO REGISTRO'}
           </SheetDescription>
+          {!contract && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setGuiaOpen(v => !v)}
+              className={`absolute right-6 top-6 text-white border border-white/20 gap-2 text-xs font-bold uppercase h-8 ${guiaOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
+            >
+              
+              GUIÁ
+            </Button>
+          )}
         </SheetHeader>
 
         {/* BODY */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar">
+          {guiaOpen && !contract && (
+            <div className="p-4 pb-0">
+              <GuiaPanel
+                mode="criar-contrato"
+                onContractSuggestion={handleGuiaSuggestion}
+              />
+            </div>
+          )}
           <Tabs defaultValue="info" className="w-full flex flex-col min-h-full">
             <TabsList className="w-full justify-start rounded-none border-b border-secti-border bg-white h-14 px-6 sticky top-0 z-10 shadow-sm">
               <TabsTrigger value="info" className="gap-2 text-sm data-[state=active]:text-secti-primary data-[state=active]:border-b-2 data-[state=active]:border-secti-primary pb-3 pt-4">

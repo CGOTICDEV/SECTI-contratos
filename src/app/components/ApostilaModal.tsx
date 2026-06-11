@@ -4,8 +4,10 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { CurrencyInput } from './ui/currency-input';
 import { Contract, Apostila } from '../types/contract';
-import { FilePlus } from 'lucide-react';
+import { FilePlus, Sparkles } from 'lucide-react';
 import { formatDate, formatCurrency } from '../utils/contract-helpers';
+import { GuiaPanel } from './GuiaPanel';
+import type { GuiaTermoSuggestion } from '../utils/guia';
 
 interface ApostilaModalProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface ApostilaModalProps {
 export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaModalProps) {
   const [text, setText] = useState('');
   const [ajuste, setAjuste] = useState<number>(0);
+  const [guiaOpen, setGuiaOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -30,6 +33,12 @@ export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaMod
       setAjuste(0);
     }
   }, [isOpen, contract]);
+
+  const handleGuiaSuggestion = (sugestao: GuiaTermoSuggestion) => {
+    setText(sugestao.minuta || sugestao.justificativa || '');
+    setAjuste(sugestao.ajuste || 0);
+    setGuiaOpen(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +59,27 @@ export function ApostilaModal({ isOpen, onClose, contract, onSave }: ApostilaMod
           <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
             Contrato ID: {contract?.id}
           </SheetDescription>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setGuiaOpen(v => !v)}
+            className={`absolute right-6 top-6 text-white border border-white/20 gap-2 text-xs font-bold uppercase h-8 ${guiaOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
+          >
+            GUIÁ
+          </Button>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-6">
+          {guiaOpen && contract && (
+            <div className="mb-4">
+              <GuiaPanel
+                mode="sugerir-termo"
+                contract={contract}
+                onTermoSuggestion={handleGuiaSuggestion}
+              />
+            </div>
+          )}
           <div className="space-y-4">
             {contract?.apostilas && contract.apostilas.length > 0 && (
               <div className="bg-white p-4 rounded-lg border border-secti-border shadow-sm space-y-2">

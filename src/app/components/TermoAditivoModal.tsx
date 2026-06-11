@@ -5,8 +5,10 @@ import { Textarea } from './ui/textarea';
 import { CurrencyInput } from './ui/currency-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Contract, TermoAditivo, TermoAditivoDocument } from '../types/contract';
-import { FilePlus, Upload, FileText, X, Download } from 'lucide-react';
+import { FilePlus, Upload, FileText, X, Download, Sparkles } from 'lucide-react';
 import { formatDate, formatCurrency } from '../utils/contract-helpers';
+import { GuiaPanel } from './GuiaPanel';
+import type { GuiaTermoSuggestion } from '../utils/guia';
 import { 
   fileToBase64, 
   downloadBase64File, 
@@ -49,6 +51,7 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
   const [prorrogacao, setProrrogacao] = useState<string>('');
   const [documents, setDocuments] = useState<TermoAditivoDocument[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [guiaOpen, setGuiaOpen] = useState(false);
 
   // Tipos de arquivo permitidos
   const ALLOWED_TYPES = [
@@ -168,6 +171,14 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
     downloadBase64File(doc.base64, doc.name, doc.type);
   };
 
+  const handleGuiaSuggestion = (sugestao: GuiaTermoSuggestion) => {
+    setTipo(sugestao.tipo);
+    setAjuste(sugestao.ajuste || 0);
+    if (sugestao.prorrogacao) setProrrogacao(sugestao.prorrogacao);
+    setText(sugestao.minuta || sugestao.justificativa || '');
+    setGuiaOpen(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (contract && text.trim()) {
@@ -195,9 +206,27 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
           <SheetDescription className="text-[#00D1FF]/80 font-mono text-xs uppercase tracking-widest mt-1">
             Contrato ID: {contract?.id}
           </SheetDescription>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setGuiaOpen(v => !v)}
+            className={`absolute right-6 top-6 text-white border border-white/20 gap-2 text-xs font-bold uppercase h-8 ${guiaOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
+          >
+            GUIÁ
+          </Button>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-6">
+          {guiaOpen && contract && (
+            <div className="mb-4">
+              <GuiaPanel
+                mode="sugerir-termo"
+                contract={contract}
+                onTermoSuggestion={handleGuiaSuggestion}
+              />
+            </div>
+          )}
           <div className="space-y-4">
             {contract?.termosAditivos && contract.termosAditivos.length > 0 && (
               <div className="bg-white p-4 rounded-lg border border-secti-border shadow-sm space-y-2">
