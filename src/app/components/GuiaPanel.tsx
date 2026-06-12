@@ -46,6 +46,8 @@ export function GuiaPanel({ mode, contract, onContractSuggestion, onTermoSuggest
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState<GuiaContractSuggestion | GuiaTermoSuggestion | null>(null);
   const [modelUsed, setModelUsed] = useState('');
+  const [thinking, setThinking] = useState('');
+  const [status, setStatus] = useState('');
   const [family, setFamily] = useState<ModelFamily>('nemotron');
   const [thinkLevel, setThinkLevel] = useState<NIMThinkingLevel>('none');
 
@@ -60,22 +62,27 @@ export function GuiaPanel({ mode, contract, onContractSuggestion, onTermoSuggest
     setLoading(true);
     setError('');
     setResultado(null);
+    setThinking('');
+    setStatus('Preparando...');
 
     try {
       if (mode === 'criar-contrato') {
-        const res = await sugerirCriacaoContrato(descricao, currentModelKey);
+        const res = await sugerirCriacaoContrato(descricao, currentModelKey, setStatus);
         setResultado(res.sugestao);
         setModelUsed(res.modelUsed);
+        if (res.thinking) setThinking(res.thinking);
       } else {
         if (!contract) throw new Error('Contrato não informado');
-        const res = await sugerirTermoAditivo(contract, descricao, currentModelKey);
+        const res = await sugerirTermoAditivo(contract, descricao, currentModelKey, setStatus);
         setResultado(res.sugestao);
         setModelUsed(res.modelUsed);
+        if (res.thinking) setThinking(res.thinking);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao consultar GUIÁ');
     } finally {
       setLoading(false);
+      setStatus('');
     }
   };
 
@@ -204,11 +211,18 @@ export function GuiaPanel({ mode, contract, onContractSuggestion, onTermoSuggest
           className="w-full bg-[#0B2046] hover:bg-blue-900 text-white gap-2 text-xs font-bold uppercase"
         >
           {loading ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Analisando...</>
+            <><Loader2 className="w-4 h-4 animate-spin" /> {status || 'Analisando...'}</>
           ) : (
             <>Consultar GUIÁ</>
           )}
         </Button>
+
+        {loading && status && status !== 'Preparando...' && (
+          <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700 animate-pulse">
+            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+            <span>{status}</span>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
@@ -227,6 +241,16 @@ export function GuiaPanel({ mode, contract, onContractSuggestion, onTermoSuggest
                   <span className="px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{NIM_THINKING_LEVELS.find(l => l.value === modelConfig.thinking)?.tokens}</span>
                 )}
               </div>
+            )}
+            {thinking && (
+              <details className="bg-gray-50 border border-gray-200 rounded-lg text-xs">
+                <summary className="px-3 py-2 cursor-pointer text-secti-muted font-medium hover:text-[#0B2046] select-none">
+                  🧠 Pensamento da IA
+                </summary>
+                <div className="px-3 pb-3 pt-1 text-gray-600 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {thinking}
+                </div>
+              </details>
             )}
 
             {isContractMode && (
