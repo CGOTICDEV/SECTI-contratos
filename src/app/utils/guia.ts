@@ -35,6 +35,7 @@ export interface GuiaResponse<T = GuiaContractSuggestion | GuiaTermoSuggestion> 
   sugestao: T;
   raw: string;
   modelUsed: string;
+  thinking?: string;
 }
 
 const TIPOS_REGISTRO = [
@@ -54,10 +55,10 @@ const TIPOS_TERMO = [
 const GUIA_LOCAL_MODEL = 'guia-extracao-local';
 const FAST_CONTRACT_MODEL = 'nim-nemotron-ultra-550b';
 const FAST_TERMO_MODEL = 'nim-nemotron-ultra-550b';
-const CONTRACT_MAX_TOKENS = 420;
-const TERMO_MAX_TOKENS = 900;
-const CONTRACT_TIMEOUT_MS = 20000;
-const TERMO_TIMEOUT_MS = 30000;
+const CONTRACT_MAX_TOKENS = 1024;
+const TERMO_MAX_TOKENS = 2048;
+const CONTRACT_TIMEOUT_MS = 120000;
+const TERMO_TIMEOUT_MS = 180000;
 
 const cleanJson = (raw: string): string => {
   return raw
@@ -340,6 +341,74 @@ function tryBuildLocalContractSuggestion(descricao: string): GuiaContractSuggest
   return confidence >= 3 ? suggestion : null;
 }
 
+const LABELED_KEYS = ['tipo', 'empresa', 'convenente', 'interveniente', 'objeto', 'gestor', 'gestora', 'fiscal', 'situacao', 'situação', 'vigencia', 'vigência', 'valor', 'garantia', 'resumo', 'observacoes', 'obs', 'numero', 'nº', 'número'];
+
+function tryBuildLabeledContractSuggestion(descricao: string): GuiaContractSuggestion | null {
+  const raw: Record<string, string> = {};
+
+  for (const line of descricao.split(/\r?\n/)) {
+    const m = line.match(/^\s*([\wÀ-ÿ]+(?:\s+[\wÀ-ÿ]+)*)\s*:\s*(.+?)\s*$/i);
+    if (!m) continue;
+    const key = normalizeText(m[1]);
+    const value = m[2].trim();
+    if (!value) continue;
+    for (const known of LABELED_KEYS) {
+      if (key === known || key.startsWith(known + ' ')) {
+        raw[known] = value;
+        break;
+      }
+    }
+  }
+
+  const filled = Object.keys(raw).filter(k => raw[k].length > 0).length;
+  if (filled < 3) return null;
+
+  const r = emptyContractSuggestion();
+
+  if (raw.tipo) r.tipoRegistro = inferTipoRegistro(normalizeText(raw.tipo));
+  if (raw.empresa) r.empresa = raw.empresa;
+  if (raw.convenente) r.convenente = raw.convenente;
+  if (raw.interveniente) r.interveniente = raw.interveniente;
+  if (raw.objeto) r.objeto = raw.objeto;
+  if (raw.gestor || raw.gestora) r.gestor = raw.gestor || raw.gestora;
+  if (raw.fiscal) r.fiscal = raw.fiscal;
+  if (raw.resumo) r.resumo = raw.resumo;
+  if (raw.observacoes || raw.obs) r.observacoes = raw.observacoes || raw.obs;
+  if (raw.numero || raw['nº'] || raw.número) r.numeroContrato = raw.numero || raw['nº'] || raw.número;
+
+  if (raw.situacao || raw.situação) {
+    const s = normalizeText(raw.situacao || raw.situação);
+    r.situacao = /suspens/.test(s) ? 'Suspenso' : /vencid/.test(s) ? 'Vencido' : 'Vigente';
+  }
+
+  const vig = raw.vigencia || raw.vigência;
+  if (vig) {
+    const range = vig.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:→|-|–|a|ate|até)\s*(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    if (range) {
+      r.vigenciaInicial = toIsoDate(range[1]);
+      r.vigenciaAtual = toIsoDate(range[2]);
+    } else {
+      const d = vig.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/);
+      if (d) r.vigenciaInicial = toIsoDate(d[1]);
+    }
+  }
+
+  if (raw.valor) {
+    r.valorInicial = parseMoney(raw.valor);
+    r.valorAtual = r.valorInicial;
+  }
+
+  if (raw.garantia) r.garantiaTipo = inferGarantia(normalizeText(raw.garantia));
+
+  if (!r.resumo && (r.empresa || r.convenente) && r.objeto) {
+    const parte = r.empresa || r.convenente;
+    r.resumo = `Contrato com ${parte} para ${r.objeto}`;
+    if (r.valorInicial > 0) r.resumo += ` no valor de R$ ${r.valorInicial.toLocaleString('pt-BR')}`;
+  }
+
+  return r;
+}
+
 function buildContractSystemPrompt(): string {
   return `Você é o GUIÁ, assistente de criação de contratos da SECTI Bahia.
 Você recebe uma descrição em linguagem natural e deve extrair os dados estruturados do contrato/convênio.
@@ -452,6 +521,7 @@ interface GuiaCallOptions {
   maxTokens?: number;
   timeoutMs?: number;
   timeoutMsForModel?: (modelKey: string) => number;
+  onStatus?: (status: string) => void;
 }
 
 function getTimeoutForModel(modelKey: string, baseTimeoutMs: number): number {
@@ -476,12 +546,13 @@ function getModelsToTry(options: GuiaCallOptions): string[] {
   return models.length > 0 ? models : [FAST_CONTRACT_MODEL];
 }
 
-async function callGuia(messages: { role: 'system' | 'user'; content: string }[], options: GuiaCallOptions = {}): Promise<{ text: string; modelUsed: string }> {
+async function callGuia(messages: { role: 'system' | 'user'; content: string }[], options: GuiaCallOptions = {}): Promise<{ text: string; modelUsed: string; thinking?: string }> {
   const modelsToTry = getModelsToTry(options);
 
   const errors: string[] = [];
   for (const modelKey of modelsToTry) {
     try {
+      options.onStatus?.(`Consultando ${NIM_MODELS[modelKey]?.label || modelKey}...`);
       const result = await generateChat({
         modelKey,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
@@ -489,7 +560,7 @@ async function callGuia(messages: { role: 'system' | 'user'; content: string }[]
         maxTokens: options.maxTokens,
         timeoutMs: options.timeoutMsForModel?.(modelKey) ?? options.timeoutMs,
       });
-      return { text: result.text, modelUsed: result.modelUsed };
+      return { text: result.text, modelUsed: result.modelUsed, thinking: result.reasoningContent };
     } catch (err) {
       errors.push(`${modelKey}: ${err instanceof Error ? err.message : 'erro'}`);
     }
@@ -497,64 +568,48 @@ async function callGuia(messages: { role: 'system' | 'user'; content: string }[]
   throw new Error(`GUIÁ: todos os modelos falharam. ${errors.join(' | ')}`);
 }
 
-export async function sugerirCriacaoContrato(descricao: string, modelKey?: string): Promise<GuiaResponse<GuiaContractSuggestion>> {
+export async function sugerirCriacaoContrato(descricao: string, modelKey?: string, onStatus?: (status: string) => void): Promise<GuiaResponse<GuiaContractSuggestion>> {
   const preferredModel = modelKey && NIM_MODELS[modelKey] ? modelKey : FAST_CONTRACT_MODEL;
-  const localSuggestion = NIM_MODELS[preferredModel]?.thinking === 'none'
-    ? tryBuildLocalContractSuggestion(descricao)
-    : null;
 
-  if (localSuggestion) {
-    return {
-      sugestao: localSuggestion,
-      raw: JSON.stringify(localSuggestion),
-      modelUsed: GUIA_LOCAL_MODEL,
-    };
-  }
+  onStatus?.('Extraindo dados do contrato...');
+  const labeled = tryBuildLabeledContractSuggestion(descricao);
+  if (labeled) return { sugestao: labeled, raw: JSON.stringify(labeled), modelUsed: GUIA_LOCAL_MODEL };
+
+  const local = tryBuildLocalContractSuggestion(descricao);
+  if (local) return { sugestao: local, raw: JSON.stringify(local), modelUsed: GUIA_LOCAL_MODEL };
 
   const systemPrompt = buildFastContractSystemPrompt();
-  const contractUserPrompt = descricao.trim();
   const userPrompt = `Descreva o contrato/convênio com base nesta solicitação:\n\n"${descricao}"\n\nPreencha o JSON com todos os campos que conseguir extrair.`;
-
-  let text: string;
-  let modelUsed: string;
 
   try {
     const result = await callGuia([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: contractUserPrompt },
+      { role: 'user', content: userPrompt },
     ], {
       preferredModel,
       fallbackModels: [FAST_CONTRACT_MODEL, 'nim-deepseek-v4-flash'],
       temperature: 0.1,
       maxTokens: CONTRACT_MAX_TOKENS,
       timeoutMsForModel: (key) => getTimeoutForModel(key, CONTRACT_TIMEOUT_MS),
+      onStatus,
     });
-    text = result.text;
-    modelUsed = result.modelUsed;
+
+    const cleaned = cleanJson(result.text);
+    const parsed = JSON.parse(cleaned) as GuiaContractSuggestion;
+    return { sugestao: parsed, raw: result.text, modelUsed: result.modelUsed, thinking: result.thinking };
   } catch (err) {
-    const localSuggestion = tryBuildLocalContractSuggestion(descricao);
-    if (localSuggestion) {
-      return {
-        sugestao: localSuggestion,
-        raw: JSON.stringify(localSuggestion),
-        modelUsed: GUIA_LOCAL_MODEL,
-      };
-    }
+    const local = tryBuildLabeledContractSuggestion(descricao) || tryBuildLocalContractSuggestion(descricao);
+    if (local) return { sugestao: local, raw: JSON.stringify(local), modelUsed: GUIA_LOCAL_MODEL };
     throw err;
   }
-
-  const cleaned = cleanJson(text);
-  const parsed = JSON.parse(cleaned) as GuiaContractSuggestion;
-
-  return { sugestao: parsed, raw: text, modelUsed };
 }
 
-export async function sugerirTermoAditivo(contract: Partial<Contract>, descricao: string, modelKey?: string): Promise<GuiaResponse<GuiaTermoSuggestion>> {
+export async function sugerirTermoAditivo(contract: Partial<Contract>, descricao: string, modelKey?: string, onStatus?: (status: string) => void): Promise<GuiaResponse<GuiaTermoSuggestion>> {
   const systemPrompt = buildFastTermoSystemPrompt(contract);
   const termoUserPrompt = descricao.trim();
   const userPrompt = `Preciso registrar o seguinte:\n\n"${descricao}"\n\nAnalise os dados do contrato e sugira o tipo de termo, valores, e gere a minuta.`;
 
-  const { text, modelUsed } = await callGuia([
+  const result = await callGuia([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: termoUserPrompt },
   ], {
@@ -563,10 +618,11 @@ export async function sugerirTermoAditivo(contract: Partial<Contract>, descricao
     temperature: 0.2,
     maxTokens: TERMO_MAX_TOKENS,
     timeoutMsForModel: (key) => getTimeoutForModel(key, TERMO_TIMEOUT_MS),
+    onStatus,
   });
 
-  const cleaned = cleanJson(text);
+  const cleaned = cleanJson(result.text);
   const parsed = JSON.parse(cleaned) as GuiaTermoSuggestion;
 
-  return { sugestao: parsed, raw: text, modelUsed };
+  return { sugestao: parsed, raw: result.text, modelUsed: result.modelUsed, thinking: result.thinking };
 }

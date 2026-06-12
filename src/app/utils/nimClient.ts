@@ -1,4 +1,6 @@
 const NVIDIA_NIM_URL = '/api/nim/v1/chat/completions';
+const NVIDIA_NIM_PROD_URL = '/.netlify/functions/nim-proxy';
+const IS_PRODUCTION = import.meta.env.PROD;
 
 export type NIMThinkingLevel = 'none' | 'medium' | 'high' | 'max';
 export type NIMModelPolicy = 'deepseek-v4' | 'nemotron-ultra';
@@ -29,6 +31,7 @@ export interface NIMResponse {
   text: string;
   modelUsed: string;
   thinking?: NIMThinkingLevel;
+  reasoningContent?: string;
 }
 
 export const NIM_THINKING_LEVELS: { value: NIMThinkingLevel; label: string; tokens: string }[] = [
@@ -176,23 +179,39 @@ export function getSupportedThinkingLevelsForModelKey(modelKey: string): NIMThin
   return NIM_POLICY_THINKING_LEVELS[config.policy];
 }
 
-async function callNvidiaNim(options: NIMRequestOptions): Promise<string> {
-  const config = NIM_MODELS[options.modelKey];
-  if (!config) throw new Error(`Modelo NIM nao encontrado: ${options.modelKey}`);
-
+function buildNimBody(config: NIMModelConfig, options: NIMRequestOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: config.modelId,
     messages: options.messages,
     stream: false,
-    reasoning_effort: config.reasoningEffort,
   };
 
-  if (config.policy === 'nemotron-ultra' && config.reasoningEffort !== 'none' && config.reasoningBudget !== undefined) {
-    body.reasoning_budget = config.reasoningBudget;
+  if (config.reasoningEffort !== 'none') {
+    body.reasoning_effort = config.reasoningEffort;
+    body.chat_template_kwargs = { thinking: true };
   }
 
-  if (options.temperature !== undefined) body.temperature = options.temperature;
+  if (config.policy === 'deepseek-v4') {
+    body.temperature = options.temperature ?? 1;
+    body.top_p = 0.95;
+  } else {
+    body.temperature = options.temperature ?? 0.2;
+    if (config.reasoningBudget !== undefined) {
+      body.reasoning_budget = config.reasoningBudget;
+    }
+  }
+
   if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+
+  return body;
+}
+
+async function callNvidiaNim(options: NIMRequestOptions): Promise<{ content: string; reasoningContent?: string }> {
+  const config = NIM_MODELS[options.modelKey];
+  if (!config) throw new Error(`Modelo NIM nao encontrado: ${options.modelKey}`);
+
+  const url = IS_PRODUCTION ? NVIDIA_NIM_PROD_URL : NVIDIA_NIM_URL;
+  const body = buildNimBody(config, options);
 
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_NIM_TIMEOUT_MS;
@@ -201,12 +220,16 @@ async function callNvidiaNim(options: NIMRequestOptions): Promise<string> {
     : undefined;
 
   try {
-    const response = await fetch(NVIDIA_NIM_URL, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (!IS_PRODUCTION) {
+      headers.Authorization = `Bearer ${getApiKey()}`;
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getApiKey()}`,
-      },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -216,9 +239,11 @@ async function callNvidiaNim(options: NIMRequestOptions): Promise<string> {
       throw new Error(data?.detail || data?.error?.message || `Erro NIM (${response.status})`);
     }
 
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) throw new Error('NVIDIA NIM retornou resposta vazia.');
-    return typeof content === 'string' ? content : content.map((p: { text?: string }) => p?.text || '').join('').trim();
+    const message = data?.choices?.[0]?.message;
+    if (!message?.content) throw new Error('NVIDIA NIM retornou resposta vazia.');
+    const content = typeof message.content === 'string' ? message.content : message.content.map((p: { text?: string }) => p?.text || '').join('').trim();
+    const reasoningContent = message.reasoning_content || undefined;
+    return { content, reasoningContent };
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error(`Tempo limite excedido ao consultar o NIM (${Math.round(timeoutMs / 1000)}s).`);
@@ -230,20 +255,20 @@ async function callNvidiaNim(options: NIMRequestOptions): Promise<string> {
 }
 
 export async function generateChat(options: NIMRequestOptions): Promise<NIMResponse> {
-  const text = await callNvidiaNim(options);
-  return { text, modelUsed: options.modelKey, thinking: NIM_MODELS[options.modelKey]?.thinking };
+  const { content, reasoningContent } = await callNvidiaNim(options);
+  return { text: content, modelUsed: options.modelKey, thinking: NIM_MODELS[options.modelKey]?.thinking, reasoningContent };
 }
 
 export async function generateChatWithFallback(modelKeys: string[], buildMessages: (modelKey: string) => NIMMessage[], options?: { temperature?: number; maxTokens?: number; timeoutMs?: number }): Promise<NIMResponse> {
   const errors: string[] = [];
   for (const modelKey of modelKeys) {
     try {
-      const text = await callNvidiaNim({
+      const { content, reasoningContent } = await callNvidiaNim({
         modelKey,
         messages: buildMessages(modelKey),
         ...options,
       });
-      return { text, modelUsed: modelKey, thinking: NIM_MODELS[modelKey]?.thinking };
+      return { text: content, modelUsed: modelKey, thinking: NIM_MODELS[modelKey]?.thinking, reasoningContent };
     } catch (err) {
       errors.push(`${modelKey}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
