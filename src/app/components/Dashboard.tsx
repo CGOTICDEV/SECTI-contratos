@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -15,7 +15,7 @@ import {
 import { Contract } from '../types/contract';
 import { getContractStatus } from '../utils/contract-helpers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileText, X, Brain } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 
@@ -24,6 +24,10 @@ interface DashboardProps {
 }
 
 export function Dashboard({ contracts }: DashboardProps) {
+  const [showGLMBanner, setShowGLMBanner] = useState(() => {
+    try { return localStorage.getItem('hideGLMBanner') !== 'true'; } catch { return true; }
+  });
+
   const analytics = useMemo(() => {
     let criticalCount = 0;
     let warningCount = 0;
@@ -135,6 +139,30 @@ export function Dashboard({ contracts }: DashboardProps) {
           Emitir Planilha
         </Button>
       </div>
+
+      {showGLMBanner && (
+        <div className="relative">
+          <div className="bg-white border border-[#00D1FF]/20 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-[#0B2046] to-[#16356f] px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="w-5 h-5 text-[#00D1FF]" />
+                <h3 className="text-white font-bold text-sm tracking-tight">Agentes de IA mantidos por GLM</h3>
+              </div>
+              <button
+                onClick={() => { setShowGLMBanner(false); try { localStorage.setItem('hideGLMBanner', 'true'); } catch {} }}
+                className="text-white/50 hover:text-white transition p-0.5"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Os agentes de IA do <strong className="text-slate-700">GUIÁ</strong> estão sendo mantidos gratuitamente pelo modelo <strong className="text-slate-700">GLM-4.7-Flash</strong> (BigModel.cn). Em caso de instabilidade, tente novamente mais tarde.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

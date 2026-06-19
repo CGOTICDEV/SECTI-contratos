@@ -5,8 +5,18 @@
 
   createRoot(document.getElementById("root")!).render(<App />);
 
-  // Register Service Worker
-  if ('serviceWorker' in navigator) {
+  // Keep development fetches identical to the SECTI app: no service worker layer.
+  if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      })
+      .catch((error) => {
+        console.log('Service Worker cleanup failed:', error);
+      });
+  }
+
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {

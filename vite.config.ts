@@ -14,13 +14,4 @@ export default defineConfig({
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
-  server: {
-    proxy: {
-      '/api/nim': {
-        target: 'https://integrate.api.nvidia.com',
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api\/nim/, ''),
-      },
-    },
-  },
 })

@@ -1,5 +1,6 @@
 import { generateChat, isNimModelKey, NIM_MODELS } from './nimClient';
 import type { Contract } from '../types/contract';
+import { getCacheKey, getCachedResult, setCachedResult } from './nimCache';
 
 export type GuiaMode = 'criar-contrato' | 'sugerir-termo';
 
@@ -55,19 +56,57 @@ const TIPOS_TERMO = [
 const GUIA_LOCAL_MODEL = 'guia-extracao-local';
 const FAST_CONTRACT_MODEL = 'nim-nemotron-ultra-550b';
 const FAST_TERMO_MODEL = 'nim-nemotron-ultra-550b';
-const CONTRACT_MAX_TOKENS = 1024;
-const TERMO_MAX_TOKENS = 2048;
+const CONTRACT_MAX_TOKENS = 2048;
+const TERMO_MAX_TOKENS = 4096;
 const CONTRACT_TIMEOUT_MS = 120000;
 const TERMO_TIMEOUT_MS = 180000;
+const GUIA_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function sanitizeContractForPrompt(contract: Partial<Contract>): Record<string, unknown> {
+  const MAX_OBJETO = 500;
+  const MAX_OBS = 300;
+  const MAX_PARTE = 200;
+
+  return {
+    tipoRegistro: contract.tipoRegistro,
+    numero: contract.numeroContrato || contract.numeroConvenio || '',
+    parte: (contract.empresa || contract.convenente || '').slice(0, MAX_PARTE),
+    objeto: (contract.objeto || '').slice(0, MAX_OBJETO),
+    valorAtual: contract.valorAtual ?? 0,
+    vigenciaAtual: contract.vigenciaAtual || '',
+    saldoDisponivel: contract.saldoDisponivel ?? 0,
+  };
+}
 
 const cleanJson = (raw: string): string => {
-  return raw
+  const cleaned = raw
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
-    .replace(/^[\s\n]*\{/, '{')
-    .replace(/\}[\s\n]*$/, '}')
     .trim();
+
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    return cleaned.slice(start, end + 1).trim();
+  }
+
+  return cleaned;
 };
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof TypeError && /fetch/i.test(err.message)) {
+    return 'falha de rede na chamada direta ao NIM; o navegador pode ter bloqueado CORS ou a conexao falhou';
+  }
+  return err instanceof Error ? err.message : 'erro desconhecido';
+}
+
+function formatGuiaFailure(errors: string[]): string {
+  if (errors.length === 0) {
+    return 'Informe pelo menos parte/empresa, objeto, valor e vigencia para aumentar a precisao.';
+  }
+
+  return `Detalhes: ${errors.slice(-2).join(' | ')}`;
+}
 
 const normalizeText = (value: string): string => (
   value
@@ -446,15 +485,7 @@ Retorne APENAS um JSON válido sem markdown:
 }
 
 function buildTermoSystemPrompt(contract: Partial<Contract>): string {
-  const contractSummary = {
-    tipoRegistro: contract.tipoRegistro,
-    numeroContrato: contract.numeroContrato,
-    empresa: contract.empresa || contract.convenente,
-    objeto: contract.objeto,
-    valorAtual: contract.valorAtual,
-    vigenciaAtual: contract.vigenciaAtual,
-    saldoDisponivel: contract.saldoDisponivel,
-  };
+  const contractSummary = sanitizeContractForPrompt(contract);
 
   return `Você é o GUIÁ, assistente de termos aditivos e apostilas da SECTI Bahia.
 Você recebe os dados atuais de um contrato e uma descrição da necessidade.
@@ -495,15 +526,7 @@ function buildFastContractSystemPrompt(): string {
 }
 
 function buildFastTermoSystemPrompt(contract: Partial<Contract>): string {
-  const c = {
-    tipoRegistro: contract.tipoRegistro,
-    numero: contract.numeroContrato || contract.numeroConvenio,
-    parte: contract.empresa || contract.convenente,
-    objeto: contract.objeto,
-    valorAtual: contract.valorAtual,
-    vigenciaAtual: contract.vigenciaAtual,
-    saldoDisponivel: contract.saldoDisponivel,
-  };
+  const c = sanitizeContractForPrompt(contract);
 
   return [
     'Sugira termo aditivo/apostila para este contrato. Responda somente JSON valido.',
@@ -549,6 +572,17 @@ function getModelsToTry(options: GuiaCallOptions): string[] {
 async function callGuia(messages: { role: 'system' | 'user'; content: string }[], options: GuiaCallOptions = {}): Promise<{ text: string; modelUsed: string; thinking?: string }> {
   const modelsToTry = getModelsToTry(options);
 
+  const cacheKey = await getCacheKey('guia', messages, modelsToTry[0] || '', options.temperature);
+  const cached = await getCachedResult(cacheKey);
+  if (cached && cached.length > 20) {
+    try {
+      const parsed = JSON.parse(cached);
+      return { text: parsed.text, modelUsed: parsed.modelUsed || 'cache', thinking: parsed.thinking };
+    } catch {
+      // Ignore corrupted cache and ask the model again.
+    }
+  }
+
   const errors: string[] = [];
   for (const modelKey of modelsToTry) {
     try {
@@ -560,9 +594,13 @@ async function callGuia(messages: { role: 'system' | 'user'; content: string }[]
         maxTokens: options.maxTokens,
         timeoutMs: options.timeoutMsForModel?.(modelKey) ?? options.timeoutMs,
       });
-      return { text: result.text, modelUsed: result.modelUsed, thinking: result.reasoningContent };
+      const response = { text: result.text, modelUsed: result.modelUsed, thinking: result.reasoningContent };
+      if (result.text.length > 10) {
+        await setCachedResult(cacheKey, JSON.stringify(response), GUIA_CACHE_TTL_MS);
+      }
+      return response;
     } catch (err) {
-      errors.push(`${modelKey}: ${err instanceof Error ? err.message : 'erro'}`);
+      errors.push(`${modelKey}: ${getErrorMessage(err)}`);
     }
   }
   throw new Error(`GUIÁ: todos os modelos falharam. ${errors.join(' | ')}`);
@@ -570,6 +608,7 @@ async function callGuia(messages: { role: 'system' | 'user'; content: string }[]
 
 export async function sugerirCriacaoContrato(descricao: string, modelKey?: string, onStatus?: (status: string) => void): Promise<GuiaResponse<GuiaContractSuggestion>> {
   const preferredModel = modelKey && NIM_MODELS[modelKey] ? modelKey : FAST_CONTRACT_MODEL;
+  const errors: string[] = [];
 
   onStatus?.('Extraindo dados do contrato...');
   const labeled = tryBuildLabeledContractSuggestion(descricao);
@@ -578,8 +617,8 @@ export async function sugerirCriacaoContrato(descricao: string, modelKey?: strin
   const local = tryBuildLocalContractSuggestion(descricao);
   if (local) return { sugestao: local, raw: JSON.stringify(local), modelUsed: GUIA_LOCAL_MODEL };
 
-  const systemPrompt = buildFastContractSystemPrompt();
-  const userPrompt = `Descreva o contrato/convênio com base nesta solicitação:\n\n"${descricao}"\n\nPreencha o JSON com todos os campos que conseguir extrair.`;
+  const systemPrompt = buildContractSystemPrompt();
+  const userPrompt = `Extraia os dados estruturados do contrato/convênio a partir da descrição abaixo e preencha o JSON. Deixe campos não identificados como string vazia ou 0.\n\n"${descricao}"`;
 
   try {
     const result = await callGuia([
@@ -596,22 +635,46 @@ export async function sugerirCriacaoContrato(descricao: string, modelKey?: strin
 
     const cleaned = cleanJson(result.text);
     const parsed = JSON.parse(cleaned) as GuiaContractSuggestion;
-    return { sugestao: parsed, raw: result.text, modelUsed: result.modelUsed, thinking: result.thinking };
+    const isEmpty = !parsed.empresa && !parsed.convenente && !parsed.objeto && !parsed.gestor && !parsed.valorInicial;
+    if (!isEmpty) return { sugestao: parsed, raw: result.text, modelUsed: result.modelUsed, thinking: result.thinking };
+    throw new Error('a IA retornou JSON sem dados minimos do contrato');
   } catch (err) {
+    errors.push(`prompt completo: ${getErrorMessage(err)}`);
+  }
+
+  onStatus?.('Tentando extração com prompt otimizado...');
+  try {
+    const fastPrompt = buildFastContractSystemPrompt();
+    const userPrompt2 = `Descreva o contrato/convênio com base nesta solicitação:\n\n"${descricao}"\n\nPreencha o JSON com todos os campos que conseguir extrair.`;
+    const result2 = await callGuia([
+      { role: 'system', content: fastPrompt },
+      { role: 'user', content: userPrompt2 },
+    ], {
+      preferredModel,
+      fallbackModels: [FAST_CONTRACT_MODEL],
+      temperature: 0.1,
+      maxTokens: CONTRACT_MAX_TOKENS,
+      timeoutMsForModel: (key) => getTimeoutForModel(key, CONTRACT_TIMEOUT_MS),
+      onStatus,
+    });
+    const cleaned2 = cleanJson(result2.text);
+    const parsed2 = JSON.parse(cleaned2) as GuiaContractSuggestion;
+    return { sugestao: parsed2, raw: result2.text, modelUsed: result2.modelUsed, thinking: result2.thinking };
+  } catch (err) {
+    errors.push(`prompt otimizado: ${getErrorMessage(err)}`);
     const local = tryBuildLabeledContractSuggestion(descricao) || tryBuildLocalContractSuggestion(descricao);
     if (local) return { sugestao: local, raw: JSON.stringify(local), modelUsed: GUIA_LOCAL_MODEL };
-    throw err;
+    throw new Error(`Nao foi possivel extrair dados do contrato. ${formatGuiaFailure(errors)}`);
   }
 }
 
 export async function sugerirTermoAditivo(contract: Partial<Contract>, descricao: string, modelKey?: string, onStatus?: (status: string) => void): Promise<GuiaResponse<GuiaTermoSuggestion>> {
-  const systemPrompt = buildFastTermoSystemPrompt(contract);
-  const termoUserPrompt = descricao.trim();
-  const userPrompt = `Preciso registrar o seguinte:\n\n"${descricao}"\n\nAnalise os dados do contrato e sugira o tipo de termo, valores, e gere a minuta.`;
+  const systemPrompt = buildTermoSystemPrompt(contract);
+  const userPrompt = `Com base na necessidade abaixo, analise os dados do contrato e sugira tipo de termo, valores, prazo e minuta preenchendo o JSON:\n\n"${descricao.trim()}"`;
 
   const result = await callGuia([
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: termoUserPrompt },
+    { role: 'user', content: userPrompt },
   ], {
     preferredModel: modelKey,
     fallbackModels: [FAST_TERMO_MODEL, 'nim-deepseek-v4-flash'],

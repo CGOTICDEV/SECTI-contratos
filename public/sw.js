@@ -37,11 +37,10 @@ self.addEventListener('activate', (event) => {
 // Fetch event - network first strategy with proper POST handling
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  const requestUrl = new URL(request.url);
   
-  // Skip caching for non-GET requests (POST, PUT, DELETE, etc.)
-  if (request.method !== 'GET') {
-    console.log('[SW] Skipping cache for non-GET request:', request.method, request.url);
-    event.respondWith(fetch(request));
+  // Let the browser handle POSTs and external APIs directly.
+  if (request.method !== 'GET' || requestUrl.origin !== self.location.origin) {
     return;
   }
 

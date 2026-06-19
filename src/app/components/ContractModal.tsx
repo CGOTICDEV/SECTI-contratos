@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Contract } from '../types/contract';
-import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake, Sparkles } from 'lucide-react';
+import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake, Terminal } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { formatCurrency, formatDate } from '../utils/contract-helpers';
 import { GuiaPanel } from './GuiaPanel';
@@ -267,9 +267,9 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
               variant="ghost"
               size="sm"
               onClick={() => setGuiaOpen(v => !v)}
-              className={`absolute right-6 top-6 text-white border border-white/20 gap-2 text-xs font-bold uppercase h-8 ${guiaOpen ? 'bg-white/20' : 'hover:bg-white/10'}`}
+              className={`absolute right-6 top-6 text-[#00D1FF] border border-[#00D1FF]/30 gap-2 text-xs font-bold uppercase h-8 transition-colors ${guiaOpen ? 'bg-[#00D1FF]/20' : 'hover:bg-[#00D1FF]/10'}`}
             >
-              
+              <Terminal className="w-4 h-4" />
               GUIÁ
             </Button>
           )}
