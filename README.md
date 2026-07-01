@@ -1,107 +1,358 @@
-# 🚀 Sistema SECTI Contratos & Convênios
+# SECTI Contratos
 
-Bem-vindo ao repositório do **Sistema de Gestão Unificada de Contratos e Convênios da SECTI**. 
-Esta aplicação web foi projetada para oferecer controle, rastreabilidade e eficiência na gestão administrativa.
+Sistema de gestão unificada de contratos e convênios da Secretaria de Ciência, Tecnologia e Inovação da Bahia (SECTI). Uma aplicação web moderna para administração, monitoramento e auditoria de instrumentos contratuais com rastreabilidade completa.
 
-## 📚 Documentação do Projeto
+## ✨ Funcionalidades
 
-A documentação completa está dividida nos seguintes arquivos para facilitar a navegação:
+- **Gestão completa de contratos e convênios** – CRUD com histórico de alterações
+- **Controle de vigência** – Alertas proativos para vencimentos (<15, 30, 60, 90 dias)
+- **Apostilas e termos aditivos** – Registro de ajustes financeiros e anotações internas
+- **Dashboard analítico** – KPIs e gráficos interativos (Recharts)
+- **Filtros avançados** – Busca por gestor, fiscal, valor, prazo e situação
+- **Ações em lote** – Seleção múltipla com exportação Excel
+- **Gestão de documentos** – Upload e anexos por contrato
+- **Comentários e aprovações** – Fluxo de revisão com aval de gestores
+- **Notificações in-app** – Centro de alertas com badge de contagem
+- **Sessão segura** – Logout automático por inatividade
+- **Internacionalização** – Suporte a pt-BR e en
+- **PWA** – Instalável como aplicativo desktop/mobile
 
-- 💻 [**Guia de Instalação e Uso**](INSTALACAO.md) - Passos para configuração e execução do projeto.
-- 📖 [**Manual do Usuário**](USER_MANUAL.md) - Funcionalidades da interface, regras de negócio e perfis de acesso.
-- ⚡ [**Implementações (v2.0)**](IMPLEMENTACOES.md) - Funcionalidades detalhadas, histórico de versões e roadmap.
-- ⚖️ [**Atribuições**](ATTRIBUTIONS.md) - Licenças e créditos (Figma, Unsplash, shadcn/ui).
+## 📸 Screenshots
+
+| Login | Dashboard |
+|-------|-----------|
+| ![Login](./public/logoLogin.jpg) | ![Dashboard](./docs/screenshots/dashboard.png) |
+
+| Tabela de Contratos | Detalhes do Contrato |
+|---------------------|----------------------|
+| ![Tabela](./docs/screenshots/tabela.png) | ![Detalhes](./docs/screenshots/detalhes.png) |
+
+> **TODO:** Adicionar screenshots reais da aplicação na pasta `docs/screenshots/`
+
+## 🏗️ Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend (React)                     │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐ │
+│  │  Componentes│  │   Utils      │  │  Types & Constants │ │
+│  │  (shadcn/ui)│  │ (i18n, PDF)  │  │  (TypeScript)      │ │
+│  └─────────────┘  └──────────────┘  └────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                            ↕ Firebase SDK
+┌─────────────────────────────────────────────────────────────┐
+│                    Firebase Backend                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Firestore   │  │    Auth      │  │   Storage (TODO) │  │
+│  │  (Dados)     │  │  (Usuários)  │  │  (Documentos)    │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Decisões técnicas:**
+- **React 18.3 + Vite 6.3** – Build rápido e HMR para desenvolvimento
+- **Tailwind CSS 4.1** – Estilização utilitária com design system consistente
+- **shadcn/ui + Radix UI** – Componentes acessíveis e customizáveis
+- **Firebase** – Backend serverless com autenticação e Firestore
+- **TypeScript** – Tipagem estática para segurança do código
+
+## 🛠️ Tecnologias
+
+| Tecnologia | Versão | Finalidade |
+|------------|--------|------------|
+| React | 18.3.1 | Framework UI |
+| TypeScript | ~5.x | Tipagem estática |
+| Vite | 6.3.5 | Build tool e dev server |
+| Tailwind CSS | 4.1.12 | Estilização utilitária |
+| Firebase | 12.9.0 | Auth, Firestore, Analytics |
+| Radix UI | 1.x | Componentes headless |
+| shadcn/ui | – | Componentes UI baseados em Radix |
+| Recharts | 2.15.2 | Gráficos e visualização de dados |
+| jsPDF + autoTable | 2.5.1 + 3.8.4 | Exportação de relatórios PDF |
+| ExcelJS | 4.4.0 | Exportação de planilhas |
+| React Hook Form | 7.55.0 | Gerenciamento de formulários |
+| Sonner | 2.0.3 | Sistema de notificações (toasts) |
+| React Router | 7.13.0 | Navegação e rotas |
+| date-fns | 3.6.0 | Manipulação de datas |
+| Nodemailer | 8.0.1 | Envio de e-mails (via Cloud Functions) |
+
+## 📂 Estrutura de Pastas
+
+```
+SECTI-contratos/
+├── public/                     # Assets estáticos (ícones, logos, manifest)
+├── src/
+│   ├── app/
+│   │   ├── components/         # Componentes React
+│   │   │   ├── ui/             # Componentes base (shadcn/ui)
+│   │   │   ├── Login.tsx       # Tela de autenticação
+│   │   │   ├── Dashboard.tsx   # Gráficos e KPIs
+│   │   │   ├── ContractsTable.tsx
+│   │   │   ├── ContractModal.tsx
+│   │   │   ├── AdvancedFilters.tsx
+│   │   │   ├── NotificationCenter.tsx
+│   │   │   ├── DocumentManager.tsx
+│   │   │   ├── CommentsApproval.tsx
+│   │   │   ├── SessionManager.tsx
+│   │   │   └── ...
+│   │   ├── utils/              # Funções utilitárias
+│   │   │   ├── i18n.ts         # Internacionalização
+│   │   │   ├── pdf-export.ts   # Exportação PDF
+│   │   │   ├── excel.ts        # Exportação Excel
+│   │   │   └── contract-helpers.ts
+│   │   ├── types/              # Tipos TypeScript
+│   │   │   ├── contract.ts
+│   │   │   └── user.ts
+│   │   ├── constants/          # Constantes da aplicação
+│   │   └── App.tsx             # Componente raiz
+│   ├── firebase.ts             # Configuração e SDK Firebase
+│   ├── main.tsx                # Entry point
+│   └── styles/                 # Estilos globais
+├── functions/                  # Cloud Functions (Firebase)
+│   └── functions/
+│       ├── src/                # Código das functions
+│       └── package.json
+├── .env.example                # Variáveis de ambiente de exemplo
+├── firestore.rules             # Regras de segurança do Firestore
+├── package.json                # Dependências e scripts
+├── vite.config.ts              # Configuração Vite
+├── tailwind.config.ts          # Configuração Tailwind
+├── USER_MANUAL.md              # Manual do usuário
+└── README.md                   # Este arquivo
+```
+
+## 🚀 Como executar
+
+### Pré-requisitos
+
+- **Node.js** 18 ou superior
+- **npm** ou **pnpm**
+- **Git**
+- **Conta Firebase** com projeto configurado
+
+### Instalação
+
+1. **Clone o repositório**
+   ```bash
+   git clone https://github.com/DinDja/SECTI-contratos.git
+   cd SECTI-contratos
+   ```
+
+2. **Instale as dependências**
+   ```bash
+   npm install
+   ```
+
+3. **Configure as variáveis de ambiente**
+   ```bash
+   cp .env.example .env
+   ```
+   Edite `.env` e preencha as chaves necessárias.
+
+4. **Configure o Firebase**
+   - Acesse o [Console Firebase](https://console.firebase.google.com/)
+   - Crie um novo projeto ou selecione o existente
+   - Ative **Authentication** (Email/Password)
+   - Crie um banco **Firestore Database**
+   - Publique as regras de segurança (`firestore.rules`)
+   - Atualize as credenciais em `src/firebase.ts`
+
+### Execução (Desenvolvimento)
+
+```bash
+npm run dev
+```
+
+A aplicação estará disponível em `http://localhost:5173`.
+
+### Build (Produção)
+
+```bash
+npm run build
+```
+
+Os arquivos de produção serão gerados na pasta `dist/`.
+
+### Deploy
+
+**TODO:** Adicionar instruções de deploy (Firebase Hosting, Vercel, ou outro).
+
+## ⚙️ Variáveis de Ambiente
+
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `VITE_NVIDIA_NIM_API_KEY` | Chave de API para NVIDIA NIM (integração de IA) | `nvapi-xxxxx` |
+
+> **Nota:** As credenciais do Firebase estão em `src/firebase.ts`.
+
+## 📖 Como usar
+
+### 1. Acesso e autenticação
+
+O sistema exige e‑mail institucional (`@secti.ba.gov.br`).
+
+- **Login tradicional:** Informe e‑mail e senha
+- **Link mágico:** Receba um link de acesso por e‑mail
+- **Recuperação de senha:** Clique em "Esqueci a senha"
+- **Novo usuário:** Solicite cadastro via tela "Criar nova conta"
+
+> Todos os cadastros exigem verificação de e‑mail antes do primeiro login.
+
+### 2. Perfis de usuário
+
+| Perfil | Permissões |
+|--------|------------|
+| **Gestor** | Criar/editar contratos, acompanhar execução |
+| **Fiscal** | Atualizar execuções, alterar valores/saldos |
+| **CCC** | Criar contratos, adicionar apostilas e termos aditivos |
+
+### 3. Navegação principal
+
+- **Painel Geral:** Lista de contratos com filtros
+- **Novo Registro:** Formulário de criação
+- **Meu Perfil:** Gerenciar dados do usuário
+- **Dashboard Visual:** Gráficos e indicadores
+
+### 4. Exemplo: Criar um contrato
+
+1. Clique em "Novo Registro" no menu lateral
+2. Preencha as abas:
+   - **Geral:** tipo, status, empresa, gestor, fiscal, objeto
+   - **Prazo:** vigência inicial e final
+   - **Financeiro:** valor inicial, saldo
+3. Clique em "Salvar"
+
+## 🔌 APIs utilizadas
+
+### Firebase
+
+| Serviço | Finalidade |
+|---------|------------|
+| **Authentication** | Login, cadastro, recuperação de senha |
+| **Firestore** | Persistência de contratos, usuários, histórico |
+| **Analytics** | Métricas de uso |
+
+**Regras de segurança:**
+- Apenas usuários autenticados e com e‑mail verificado acessam `contracts`
+- Usuários só podem editar seu próprio perfil em `users/{uid}`
+- Demais coleções são bloqueadas por padrão
+
+### NVIDIA NIM API
+
+Integração com modelos de IA da NVIDIA para funcionalidades futuras.
+
+**Configuração:**
+- Obtenha a chave em https://build.genc.nvidia.com/
+- Adicione em `.env` como `VITE_NVIDIA_NIM_API_KEY`
+
+## 🧪 Testes
+
+### Testes das Cloud Functions
+
+```bash
+npm run test:functions
+```
+
+### Testes manuais
+
+| Funcionalidade | Como testar |
+|----------------|-------------|
+| **Notificações** | Crie contrato com vencimento <15 dias; badge deve aparecer no sino |
+| **Dashboard** | Acesse "Dashboard Visual"; gráficos devem atualizar |
+| **Filtros** | Aplique múltiplos filtros; badge mostra quantidade ativa |
+| **Sessão** | Configure `inactivityTimeout={1}`; aviso deve aparecer após inatividade |
+| **Autenticação** | Crie conta; verifique e‑mail; faça login |
+
+**TODO:** Implementar testes automatizados (Vitest, React Testing Library).
+
+## 📈 Roadmap
+
+### ✅ Implementado
+- [x] Autenticação com verificação de e‑mail
+- [x] CRUD de contratos e convênios
+- [x] Histórico de alterações (audit trail)
+- [x] Apostilas e termos aditivos
+- [x] Dashboard com gráficos
+- [x] Filtros avançados
+- [x] Notificações in-app
+- [x] Exportação Excel e PDF
+- [x] Gestão de documentos (upload)
+- [x] Comentários e aprovações
+- [x] Sessão com timeout por inatividade
+- [x] Internacionalização (pt-BR/en)
+- [x] Tabela virtualizada (performance)
+
+### 🚧 Em desenvolvimento
+- [ ] Upload real para Firebase Storage
+- [ ] E‑mails proativos via Cloud Functions
+- [ ] Relatórios avançados com gráficos em PDF
+- [ ] Importação em massa via planilha
+- [ ] Modo offline (PWA)
+
+### 💡 Planejamento futuro
+- [ ] Painel de auditoria para administradores
+- [ ] Assinatura eletrônica de documentos
+- [ ] Integração com sistemas externos (SEI, SIAFI)
+- [ ] Aplicativo mobile nativo
+
+## 🤝 Contribuição
+
+Contribuições são bem-vindas! Para contribuir:
+
+1. **Fork** o repositório
+2. Crie uma branch para sua feature (`git checkout -b feature/NovaFuncionalidade`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/NovaFuncionalidade`)
+5. Abra um **Pull Request**
+
+### Padrões de código
+
+- Use **TypeScript** para todo novo código
+- Siga o estilo dos componentes existentes (shadcn/ui)
+- Mantenha componentes pequenos e reutilizáveis
+- Documente funções complexas com JSDoc
+
+## 📄 Licença
+
+**TODO:** Definir licença do projeto (ex: MIT, Apache 2.0).
+
+## 👨‍💻 Autor
+
+**SECTI - Secretaria de Ciência, Tecnologia e Inovação da Bahia**
+
+Desenvolvido pela equipe de tecnologia da SECTI para gestão interna de contratos e convênios.
+
+- **Site:** https://www.secti.ba.gov.br/
+- **Email:** contato@secti.ba.gov.br
 
 ---
 
-# 🎨 Manual de Bordo: Design System SECTI.OS
+## Sugestões de melhoria
 
-## 1. Diretrizes Estratégicas
-O design deve transmitir autoridade institucional, clareza e eficiência. O foco é a rápida localização de dados e a execução de tarefas administrativas sem ruído visual. O sistema é a central de comando; a interface deve ser limpa, estruturada e pragmática.
-
-## 2. Tipografia (A Bússola Visual)
-Utilizamos fontes sem serifa para garantir legibilidade em painéis densos e varredura rápida de dados.
-
-* **Primária:** Inter (Títulos e corpo de texto).
-* **Secundária:** JetBrains Mono (Para exibição de dados técnicos, chaves de API e protocolos).
-* **Hierarquia:**
-  * **H1 (Títulos de Página):** `text-3xl font-bold text-secti-primary`
-  * **H2 (Títulos de Seção):** `text-2xl font-semibold text-secti-text`
-  * **H3 (Subtítulos):** `text-lg font-medium text-secti-text`
-  * **Body (Texto padrão):** `text-base text-secti-text`
-  * **Small (Rótulos e apoios):** `text-sm text-secti-muted`
-
-## 3. Cores (O Mapa de Navegação)
-As cores definem o terreno de operação. Evite o uso de cores de alerta fora de contexto.
-
-* **Primária (Base da frota):** `#0B2046` (Azul Marinho) - Barras de navegação, botões principais e cabeçalhos.
-* **Secundária (Apoio tático):** `#0056B3` (Azul Institucional) - Estados de hover e links.
-* **Destaque (Marcadores de rota):** `#00D1FF` (Ciano) - Foco em inputs, seleções ativas e indicadores de progresso.
-* **Superfícies (O convés):** 
-  * Fundo geral: `#F8FAFC`
-  * Cartões e modais: `#FFFFFF`
-  * Bordas e divisões: `#E2E8F0`
-* **Estados (Sinalizadores):**
-  * Sucesso: `#10B981`
-  * Aviso: `#F59E0B`
-  * Perigo/Erro: `#EF4444`
-
-## 4. Estrutura e Grid (O Esqueleto do Navio)
-* **Layout Principal:** Padrão Dashboard. Barra lateral fixa à esquerda, barra de topo fixa e área de conteúdo fluida.
-* **Grid:** Sistema de 12 colunas do Tailwind. Modais e formulários complexos devem respeitar alinhamento estrito em grid.
-* **Espaçamento (Respiro tático):** 
-  * Margens internas de cartões: `p-6`.
-  * Espaço entre blocos de conteúdo: `gap-6` ou `mb-6`.
-
-## 5. Arsenal de Componentes
-
-### 5.1. Botões
-Ações principais devem guiar o usuário; ações secundárias devem oferecer recuo sem distração.
-
-* **Primário:** `bg-secti-primary text-white`. Uso: Salvar, Confirmar, Enviar.
-* **Secundário:** `bg-white text-secti-primary border-secti-border`. Uso: Cancelar, Voltar, Filtrar.
-* **Ações Destrutivas:** Fundo ou texto `text-danger`. Uso: Excluir, Revogar.
-* **Comportamento:** Todos devem ter estado de `hover` e foco com `ring-2 ring-secti-accent` para demarcar a posição do cursor.
-
-### 5.2. Formulários e Inputs
-Instrumentos de coleta de dados. Precisam ser inconfundíveis.
-
-* **Aparência:** Fundo branco, borda `border-secti-border`, `rounded-md`.
-* **Foco:** Ao focar, a borda recebe `ring-2 ring-secti-secondary`. Nunca deixe o input sem feedback tático de foco.
-* **Rótulos (Labels):** Posicionados acima do campo, `text-sm font-medium text-secti-text`.
-
-### 5.3. Cartões (Cards)
-Agrupam informações correlatas, funcionando como compartimentos estanques no layout.
-
-* **Estrutura:** Fundo `bg-secti-surface`, borda fina, `shadow-card`, `rounded-lg`.
-* **Uso:** Gráficos, resumos, tabelas e formulários. Não misture dados de domínios diferentes no mesmo cartão.
-
-### 5.4. Tabelas
-A espinha dorsal do monitoramento de dados.
-
-* **Cabeçalho:** Fundo `bg-gray-50`, texto em caixa alta, `text-xs font-semibold text-secti-muted`.
-* **Linhas:** Fundo branco, divisórias horizontais. Estado de `hover:bg-gray-50` para rastreamento visual da linha em tabelas largas.
+1. **Definir licença** – Adicionar arquivo `LICENSE`
+2. **Configurar CI/CD** – GitHub Actions para testes e deploy
+3. **Testes automatizados** – Implementar Vitest + React Testing Library
+4. **Documentação de API** – Criar docs para Cloud Functions
+5. **Variáveis de ambiente** – Migrar credenciais do Firebase para `.env`
+6. **Screenshots** – Adicionar capturas reais em `docs/screenshots/`
+7. **Badge de versão** – Adicionar badge no topo do README
+8. **Deploy instructions** – Documentar processo de deploy
+9. **CHANGELOG** – Criar arquivo de histórico de mudanças
 
 ---
 
-## 6. Integração Firebase (Autenticação e Firestore)
-Este projeto utiliza Firebase Authentication e Firestore para persistência de usuários e contratos.
+<details>
+<summary><strong>📋 Índice rápido</strong></summary>
 
-* Ao cadastrar-se, o operador escolhe sua **função** (`gestor` ou `fiscal`) e pode anexar uma **foto de perfil** em Base64.
-* As inscrições agora geram automaticamente um e‑mail de verificação; a conta só se torna acessível após validação do endereço institucional. O usuário é desconectado após o cadastro e deve confirmar o link no e‑mail para poder efetuar login.
-* Após o login (após verificação), um item “Meu Perfil” aparece na barra lateral permitindo que o usuário visualize seus dados.
-* O documento de usuário tem o `uid` como ID e inclui os campos `email`, `displayName`, `role`, `photoBase64` e `createdAt`.
-* Regras de segurança (`firestore.rules`) limitam leitura/criação dos registros de usuário somente ao próprio UID. A leitura de outros dados (contratos ou perfil) também exige que o e‑mail tenha sido verificado.
-* A coleção `contracts` permanece aberta para qualquer usuário autenticado e verificado.
+1. [Funcionalidades](#-funcionalidades)
+2. [Arquitetura](#-arquitetura)
+3. [Tecnologias](#-tecnologias)
+4. [Instalação](#-como-executar)
+5. [Variáveis de Ambiente](#-variáveis-de-ambiente)
+6. [Como usar](#-como-usar)
+7. [APIs](#-apis-utilizadas)
+8. [Testes](#-testes)
+9. [Roadmap](#-roadmap)
+10. [Contribuição](#-contribuição)
 
-* **Novo:** contratos agora podem receber "apostilas" – anotações internas (ajustes de dotação, valores, prazos etc.) que não exigem termo aditivo formal. As apostilas podem opcionalmente trazer um **ajuste financeiro** (positivo para incremento, negativo para dedução) que modifica imediatamente o `valorAtual` do contrato e é refletido no saldo disponível. Usuários com papel **CCC** podem inserir e listar apostilas sem acessar o formulário de edição completo. O histórico mantém registro de cada inclusão, incluindo o valor ajustado.
-
-Para testar:
-1. Ative Email/Password no console Firebase.
-2. Crie conta no app; verifique Firestore>users.
-3. Confira seu e‑mail, clique no link de verificação.
-4. Faça login e gerencie contratos via UI.
-
-## 7. Comportamento e Estados
-* **Carregamento (Loading):** Utilize skeletons em vez de spinners para carregar grandes blocos de dados. Spinners operam apenas dentro de botões durante submissões diretas.
-* **Feedback (Toasts):** Posicionados no canto superior direito. Desaparecem após 4 segundos. Erros críticos exigem descarte manual do operador.
+</details>
