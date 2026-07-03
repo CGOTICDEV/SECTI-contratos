@@ -435,14 +435,47 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                 {/* Seção: Fiscalização do contrato */}
                 <div className="bg-white p-5 rounded-lg border border-secti-border shadow-sm space-y-4">
                   <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-2">Fiscalização do contrato</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Gestor</Label>
-                      <Input className="bg-gray-50 border-secti-border" value={formData.gestor ?? ''} onChange={(e) => handleChange('gestor', e.target.value)} />
+                      <Input 
+                        className="bg-gray-50 border-secti-border" 
+                        value={formData.gestor ?? ''} 
+                        onChange={(e) => handleChange('gestor', e.target.value)} 
+                        placeholder="Nome do gestor"
+                      />
                     </div>
                     <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">E-mail do Gestor</Label>
+                      <Input 
+                        type="email"
+                        className="bg-gray-50 border-secti-border" 
+                        value={formData.gestorEmail ?? ''} 
+                        onChange={(e) => handleChange('gestorEmail', e.target.value)} 
+                        placeholder="gestor@secti.ba.gov.br"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Fiscal</Label>
-                      <Input className="bg-gray-50 border-secti-border" value={formData.fiscal ?? ''} onChange={(e) => handleChange('fiscal', e.target.value)} />
+                      <Input 
+                        className="bg-gray-50 border-secti-border" 
+                        value={formData.fiscal ?? ''} 
+                        onChange={(e) => handleChange('fiscal', e.target.value)} 
+                        placeholder="Nome do fiscal"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-secti-muted">E-mail do Fiscal</Label>
+                      <Input 
+                        type="email"
+                        className="bg-gray-50 border-secti-border" 
+                        value={typeof formData.fiscalEmail === 'string' ? formData.fiscalEmail : ''} 
+                        onChange={(e) => handleChange('fiscalEmail', e.target.value)} 
+                        placeholder="fiscal@secti.ba.gov.br"
+                      />
+                      <p className="text-[9px] text-secti-muted mt-1">Para múltiplos fiscais, separe os e-mails por vírgula ou ponto e vírgula.</p>
                     </div>
                   </div>
                 </div>

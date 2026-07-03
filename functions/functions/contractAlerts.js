@@ -12,6 +12,54 @@ const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 
 const nodemailer = require('nodemailer');
 
+// Mapeamento oficial de gestores e fiscais por email
+const GESTORES_FISCAIS_OFICIAIS = {
+  // Gestores
+  'joao.santana@secti.ba.gov.br': { nome: 'JOÃO DOS SANTOS SANTANA JÚNIOR', tipo: 'gestor' },
+  'micaele.diamantino@secti.ba.gov.br': { nome: 'MICAELE SANTOS DIAMANTINO', tipo: 'gestor' },
+  'diana.melo@secti.ba.gov.br': { nome: 'DIANA SAMPAIO MELO', tipo: 'gestor' },
+  'elisangela.reis@secti.ba.gov.br': { nome: 'ELISÂNGELA DOS REIS OLIVEIRA', tipo: 'gestor' },
+  'caio.cerqueira@secti.ba.gov.br': { nome: 'CAIO DE JESUS CERQUEIRA', tipo: 'gestor' },
+  'renato.cardozo@secti.ba.gov.br': { nome: 'RENATO GUIMARÃES CARDOZO', tipo: 'gestor' },
+  // Fiscais
+  'taisa.silva@secti.ba.gov.br': { nome: 'TAÍSA TELES DA SILVA', tipo: 'fiscal' },
+  'janine.duarte@secti.ba.gov.br': { nome: 'JANINE BIDU DUARTE', tipo: 'fiscal' },
+  'soane.madureira@secti.ba.gov.br': { nome: 'SOANE NAZARÉ DE ANDRADE HART MADUREIRA', tipo: 'fiscal' },
+  'caio.cerqueira@secti.ba.gov.br': { nome: 'CAIO DE JESUS CERQUEIRA', tipo: 'fiscal' },
+  'nathaly.nascimento@secti.ba.gov.br': { nome: 'NATHALY DA SILVA NASCIMENTO', tipo: 'fiscal' },
+  'sueli.jesus@secti.ba.gov.br': { nome: 'SUELI DE JESUS SILVA', tipo: 'fiscal' },
+  'valmir.ferreira@secti.ba.gov.br': { nome: 'VALMIR SANTOS FERREIRA FILHO', tipo: 'fiscal' },
+  'jose.evelin@secti.ba.gov.br': { nome: 'JÔSE EVELIN TELES CANDEIAS', tipo: 'fiscal' },
+  'ariadna.flores@secti.ba.gov.br': { nome: 'ARIADNA COSTA FLORES', tipo: 'fiscal' },
+  'ricardo.cavalcanti@secti.ba.gov.br': { nome: 'RICARDO JORGE CAVALCANTI CAVALCANTI FILHO', tipo: 'fiscal' },
+  'kleber.freitas@secti.ba.gov.br': { nome: 'KLEBER ALMEIDA FREITAS', tipo: 'fiscal' }
+};
+
+// Normaliza nome: remove acentos, espaços extras, deixa em maiúsculas
+function normalizeName(name) {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Tenta encontrar um email pelo nome normalizado
+function findEmailByNormalizedName(rawName) {
+  if (!rawName) return null;
+  const normalizedInput = normalizeName(rawName);
+  
+  for (const [email, data] of Object.entries(GESTORES_FISCAIS_OFICIAIS)) {
+    const normalizedOfficial = normalizeName(data.nome);
+    if (normalizedInput === normalizedOfficial || normalizedInput.includes(normalizedOfficial) || normalizedOfficial.includes(normalizedInput)) {
+      return email;
+    }
+  }
+  return null;
+}
+
 function createGmailTransporter(appPassword) {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -62,12 +110,47 @@ async function getExpiringContracts() {
 
   snap.forEach((doc) => {
     const data = doc.data();
-    if (data.situacao === 'Vencido') return; // already expired
+    if (data.situacao === 'Vencido') return;
 
     const days = daysRemaining(data.vigenciaAtual);
     const threshold = getExpiryThreshold(days);
     if (threshold !== null) {
-      results.push({ id: doc.id, ...data, daysRemaining: days, threshold });
+      // Usa emails diretos se estiverem presentes, senão busca pelo nome
+      let gestorEmail = data.gestorEmail || null;
+      let fiscalEmails = data.fiscalEmail ? (Array.isArray(data.fiscalEmail) ? data.fiscalEmail : [data.fiscalEmail]) : null;
+      
+      // Se não tiver email direto do gestor, tenta encontrar pelo nome
+      if (!gestorEmail) {
+        const gestorNome = data.gestor || data.nomeGestor;
+        if (gestorNome && typeof gestorNome === 'string') {
+          gestorEmail = findEmailByNormalizedName(gestorNome);
+        }
+      }
+      
+      // Se não tiver email direto do fiscal, tenta encontrar pelo nome
+      if (!fiscalEmails || fiscalEmails.length === 0) {
+        const fiscalNome = data.fiscal || data.nomeFiscal;
+        if (fiscalNome) {
+          const fiscais = Array.isArray(fiscalNome) ? fiscalNome : [fiscalNome];
+          fiscalEmails = [];
+          for (const fiscal of fiscais) {
+            if (typeof fiscal === 'string') {
+              const emailFiscal = findEmailByNormalizedName(fiscal);
+              if (emailFiscal) fiscalEmails.push(emailFiscal);
+            }
+          }
+          if (fiscalEmails.length === 0) fiscalEmails = null;
+        }
+      }
+      
+      results.push({ 
+        id: doc.id, 
+        ...data, 
+        daysRemaining: days, 
+        threshold,
+        gestorEmail,
+        fiscalEmail: fiscalEmails
+      });
     }
   });
 
@@ -77,10 +160,24 @@ async function getExpiringContracts() {
 function extractEmailsFromContract(contract) {
   const emails = new Set();
 
-  // scan every property looking for address-like values; supports
-  // strings and arrays of strings.  This lets us pick up fields such as
-  // gestor, fiscal or emailEditor (which in the UI is stored as an array).
+  // 1. Usa emails diretos se estiverem presentes (prioridade)
+  if (contract.gestorEmail && typeof contract.gestorEmail === 'string') {
+    emails.add(contract.gestorEmail.trim().toLowerCase());
+  }
+  
+  if (contract.fiscalEmail) {
+    const fiscais = Array.isArray(contract.fiscalEmail) ? contract.fiscalEmail : [contract.fiscalEmail];
+    for (const fiscal of fiscais) {
+      if (typeof fiscal === 'string' && fiscal.includes('@')) {
+        emails.add(fiscal.trim().toLowerCase());
+      }
+    }
+  }
+
+  // 2. Extrai emails diretos de outros campos do contrato
   for (const key of Object.keys(contract)) {
+    if (key === 'gestorEmail' || key === 'fiscalEmail') continue; // já processados
+    
     const val = contract[key];
     if (typeof val === 'string' && val.includes('@')) {
       emails.add(val.trim().toLowerCase());
@@ -88,6 +185,28 @@ function extractEmailsFromContract(contract) {
       for (const item of val) {
         if (typeof item === 'string' && item.includes('@')) {
           emails.add(item.trim().toLowerCase());
+        }
+      }
+    }
+  }
+
+  // 3. Se ainda não encontrou emails, tenta encontrar pelos nomes de gestor e fiscal
+  if (!contract.gestorEmail) {
+    const gestorNome = contract.gestor || contract.nomeGestor;
+    if (gestorNome && typeof gestorNome === 'string') {
+      const emailGestor = findEmailByNormalizedName(gestorNome);
+      if (emailGestor) emails.add(emailGestor);
+    }
+  }
+  
+  if (!contract.fiscalEmail || (Array.isArray(contract.fiscalEmail) && contract.fiscalEmail.length === 0)) {
+    const fiscalNome = contract.fiscal || contract.nomeFiscal;
+    if (fiscalNome) {
+      const fiscais = Array.isArray(fiscalNome) ? fiscalNome : [fiscalNome];
+      for (const fiscal of fiscais) {
+        if (typeof fiscal === 'string') {
+          const emailFiscal = findEmailByNormalizedName(fiscal);
+          if (emailFiscal) emails.add(emailFiscal);
         }
       }
     }
@@ -170,17 +289,67 @@ async function createExpiryNotification(uid, contract, threshold) {
 function generateContractEmailHtml(userName, contracts) {
   const rows = contracts
     .map((c) => {
+      // Tenta obter info do gestor - prioriza email direto, depois busca na lista
+      let gestorNome = 'Não informado';
+      let gestorEmail = c.gestorEmail;
+      
+      if (c.gestorEmail && GESTORES_FISCAIS_OFICIAIS[c.gestorEmail.toLowerCase()]) {
+        gestorNome = GESTORES_FISCAIS_OFICIAIS[c.gestorEmail.toLowerCase()].nome;
+      } else if (c.gestorEmail) {
+        gestorNome = c.gestor || 'Gestor';
+      } else if (c.gestor) {
+        gestorNome = c.gestor;
+        gestorEmail = findEmailByNormalizedName(c.gestor);
+      }
+      
+      // Tenta obter info do fiscal - pode ser múltiplo
+      let fiscalNomes = [];
+      let fiscalEmailsLista = [];
+      
+      if (c.fiscalEmail && Array.isArray(c.fiscalEmail)) {
+        fiscalEmailsLista = c.fiscalEmail;
+        for (const email of c.fiscalEmail) {
+          const info = GESTORES_FISCAIS_OFICIAIS[email.toLowerCase()];
+          fiscalNomes.push(info ? info.nome : email);
+        }
+      } else if (c.fiscalEmail && typeof c.fiscalEmail === 'string') {
+        fiscalEmailsLista = [c.fiscalEmail];
+        const info = GESTORES_FISCAIS_OFICIAIS[c.fiscalEmail.toLowerCase()];
+        fiscalNomes.push(info ? info.nome : c.fiscalEmail);
+      } else if (c.fiscal) {
+        const fiscais = Array.isArray(c.fiscal) ? c.fiscal : [c.fiscal];
+        for (const fiscal of fiscais) {
+          fiscalNomes.push(fiscal);
+          const email = findEmailByNormalizedName(fiscal);
+          if (email) fiscalEmailsLista.push(email);
+        }
+      }
+      
+      const fiscalDisplay = fiscalNomes.length > 0 ? fiscalNomes.join('; ') : 'Não informado';
+      
       return `
       <tr>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
           <strong>${c.empresa || 'Sem empresa'}</strong><br/>
-          <small>${c.numeroContrato || ''}</small>
+          <small style="color: #64748b;">${c.numeroContrato || ''}</small>
         </td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0; text-align:center;">
           ${formatDate(c.vigenciaAtual)}
         </td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0; text-align:center;">
-          ${c.daysRemaining} dias
+          <span style="background-color: ${c.daysRemaining <= 15 ? '#fecaca' : c.daysRemaining <= 30 ? '#fed7aa' : '#fef3c7'}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
+            ${c.daysRemaining} dias
+          </span>
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+          <strong style="color: #1e3a5f;">${gestorNome}</strong><br/>
+          ${gestorEmail ? `<small style="color: #64748b;">${gestorEmail}</small>` : ''}
+          <small style="color: #64748b; text-transform: uppercase; display: block; margin-top: 2px;">Gestor</small>
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+          <strong style="color: #1e3a5f;">${fiscalDisplay}</strong><br/>
+          ${fiscalEmailsLista.length > 0 ? `<small style="color: #64748b;">${fiscalEmailsLista.join('; ')}</small>` : ''}
+          <small style="color: #64748b; text-transform: uppercase; display: block; margin-top: 2px;">Fiscal</small>
         </td>
       </tr>
       `;
@@ -188,34 +357,89 @@ function generateContractEmailHtml(userName, contracts) {
     .join('');
 
   return `
-  <!DOCTYPE html>
-  <html>
-  <head><meta charset="utf-8" /></head>
-  <body style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f8fafc;margin:0;padding:20px;">
-    <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
-      <div style="background:#1e3a5f;padding:24px;text-align:center;color:#fff;">
-        <h1 style="margin:0;font-size:20px;">🔔 Aviso de contratos</h1>
-        <p style="margin:0;font-size:12px;">Sistema SECTI</p>
-      </div>
-      <div style="padding:24px;color:#334155;">
-        <p>Olá <strong>${userName || 'usuário'}</strong>,</p>
-        <p>Os seguintes contratos estão se aproximando do fim da vigência:</p>
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr style="background:#f1f5f9;font-size:12px;color:#64748b;">
-              <th style="padding:8px;text-align:left;">Contrato / Empresa</th>
-              <th style="padding:8px;text-align:center;">Vigência atual</th>
-              <th style="padding:8px;text-align:center;">Dias restantes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviso de Contratos - SECTI</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  
+  <!-- Wrapper Principal -->
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        
+        <!-- Container do E-mail -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin: 0 auto;">
+
+          <!-- Cabeçalho Institucional -->
+          <tr>
+            <td align="center" style="padding: 30px 20px 20px 20px; background-color: #ffffff; border-bottom: 3px solid #1e3a5f;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Bras%C3%A3o_da_Bahia.png/120px-Bras%C3%A3o_da_Bahia.png" alt="Brasão do Estado da Bahia" width="80" style="display: block; margin-bottom: 15px;" />
+              <h1 style="margin: 0; font-size: 18px; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1px;">Estado da Bahia</h1>
+              <h2 style="margin: 4px 0 16px 0; font-size: 13px; color: #64748b; font-weight: normal; text-transform: uppercase;">Secretaria de Ciência, Tecnologia e Inovação</h2>
+              
+              <div style="background-color: #f0f4f8; border-left: 4px solid #1e3a5f; padding: 10px 20px; display: inline-block; border-radius: 0 4px 4px 0;">
+                <h3 style="margin: 0; font-size: 15px; color: #1e3a5f;">🔔 AVISO DE VIGÊNCIA DE CONTRATOS</h3>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Corpo do E-mail -->
+          <tr>
+            <td style="padding: 30px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
+              <p style="margin-top: 0;">Olá <strong>${userName || 'usuário'}</strong>,</p>
+              <p>Os seguintes contratos registrados no <strong>Sistema SECTI</strong> estão se aproximando do fim da vigência e requerem sua atenção para análise de renovação ou encerramento.</p>
+
+              <!-- Tabela de Dados -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 25px; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden;">
+                <thead>
+                  <tr>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Contrato / Empresa</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: center; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Vigência Atual</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: center; font-size: 13px; color: #b91c1c; border-bottom: 2px solid #cbd5e1;">Dias Restantes ⏳</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Gestor</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Fiscal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- As linhas geradas pelo seu sistema entrarão aqui -->
+                  ${rows}
+                </tbody>
+              </table>
+
+              <!-- Botão de Ação -->
+              <div style="text-align: center; margin-top: 35px; margin-bottom: 10px;">
+                <a href="#" style="background-color: #1e3a5f; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acessar Sistema para Detalhes</a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Rodapé -->
+          <tr>
+            <td align="center" style="background-color: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; line-height: 1.5;">
+              <p style="margin: 0 0 12px 0;">
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Portal da Transparência</a> &nbsp;|&nbsp; 
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Site da SECTI</a> &nbsp;|&nbsp; 
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Contato</a>
+              </p>
+              <p style="margin: 0;">
+                Esta é uma notificação automática gerada pelo <strong>Sistema SECTI</strong>.<br/>
+                Por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+
         </table>
-      </div>
-    </div>
-  </body>
-  </html>
+        
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>
   `;
 }
 

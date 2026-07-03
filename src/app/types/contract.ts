@@ -86,7 +86,9 @@ export interface Contract {
   empresa: string;
   objeto: string;
   gestor: string;
+  gestorEmail?: string;
   fiscal: string;
+  fiscalEmail?: string | string[];
   ccc?: string;
   situacao: 'Vigente' | 'Vencido' | 'Suspenso';
   vigenciaInicial: string;

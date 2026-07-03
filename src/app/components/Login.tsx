@@ -229,8 +229,8 @@ export function Login({ onLogin, onRegister, onForgotPassword, onSendEmailLink }
               <HelpCircle className="w-5 h-5" />
             </button>
             <img
-              src="/MARCA GOVBA 0126 - DO LADO DA GENTE__H.png"
-              alt="Marca GOVBA"
+              src="https://imgs.search.brave.com/O36dfhujpJ6Sdyg3pVNqngfxE3QX8fXXdZNvYiSNEck/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly91cGxv/YWQud2lraW1lZGlh/Lm9yZy93aWtpcGVk/aWEvY29tbW9ucy8x/LzEyL0JyYXMlQzMl/QTNvX2RvX2VzdGFk/b19kYV9CYWhpYS5z/dmc"
+              alt="Brasão da Bahia"
               className="mx-auto mb-3 w-28 drop-shadow-md"
             />
             <h1 className="text-xl font-bold text-white tracking-tight">SECTI <span className="font-light">Contratos</span></h1>

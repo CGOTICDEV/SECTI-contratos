@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviso de Contratos - SECTI</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  
+  <!-- Wrapper Principal -->
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        
+        <!-- Container do E-mail -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin: 0 auto;">
+
+          <!-- Cabeçalho Institucional -->
+          <tr>
+            <td align="center" style="padding: 30px 20px 20px 20px; background-color: #ffffff; border-bottom: 3px solid #1e3a5f;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Bras%C3%A3o_da_Bahia.png/120px-Bras%C3%A3o_da_Bahia.png" alt="Brasão do Estado da Bahia" width="80" style="display: block; margin-bottom: 15px;" />
+              <h1 style="margin: 0; font-size: 18px; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1px;">Estado da Bahia</h1>
+              <h2 style="margin: 4px 0 16px 0; font-size: 13px; color: #64748b; font-weight: normal; text-transform: uppercase;">Secretaria de Ciência, Tecnologia e Inovação</h2>
+              
+              <div style="background-color: #f0f4f8; border-left: 4px solid #1e3a5f; padding: 10px 20px; display: inline-block; border-radius: 0 4px 4px 0;">
+                <h3 style="margin: 0; font-size: 15px; color: #1e3a5f;">🔔 AVISO DE VIGÊNCIA DE CONTRATOS</h3>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Corpo do E-mail -->
+          <tr>
+            <td style="padding: 30px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
+              <p style="margin-top: 0;">Olá <strong>${userName || 'usuário'}</strong>,</p>
+              <p>Os seguintes contratos registrados no <strong>Sistema SECTI</strong> estão se aproximando do fim da vigência e requerem sua atenção para análise de renovação ou encerramento.</p>
+
+              <!-- Tabela de Dados -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 25px; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden;">
+                <thead>
+                  <tr>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Contrato / Empresa</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: center; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Vigência Atual</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: center; font-size: 13px; color: #b91c1c; border-bottom: 2px solid #cbd5e1;">Dias Restantes ⏳</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Gestor</th>
+                    <th style="background-color: #f8fafc; padding: 12px 15px; text-align: left; font-size: 13px; color: #1e3a5f; border-bottom: 2px solid #cbd5e1;">Fiscal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- As linhas geradas pelo seu sistema entrarão aqui -->
+                  ${rows}
+                </tbody>
+              </table>
+
+              <!-- Botão de Ação -->
+              <div style="text-align: center; margin-top: 35px; margin-bottom: 10px;">
+                <a href="#" style="background-color: #1e3a5f; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acessar Sistema para Detalhes</a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Rodapé -->
+          <tr>
+            <td align="center" style="background-color: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; line-height: 1.5;">
+              <p style="margin: 0 0 12px 0;">
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Portal da Transparência</a> &nbsp;|&nbsp; 
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Site da SECTI</a> &nbsp;|&nbsp; 
+                <a href="#" style="color: #1e3a5f; text-decoration: none; font-weight: bold;">Contato</a>
+              </p>
+              <p style="margin: 0;">
+                Esta é uma notificação automática gerada pelo <strong>Sistema SECTI</strong>.<br/>
+                Por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>
