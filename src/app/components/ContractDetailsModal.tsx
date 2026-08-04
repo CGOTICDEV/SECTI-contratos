@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { formatDate, formatCurrency, isConvenioType } from '../utils/contract-helpers';
 import { Contract, HistoryEntry, HistoryChange, Apostila } from '../types/contract';
 import { downloadBase64File } from '../utils/file-helpers';
+import { resolveDocumentBlob } from '../utils/storage-fallback';
 import { 
   FileSearch, 
   FilePlus,
@@ -19,7 +20,8 @@ import {
   ChevronUp,
   Handshake,
   FileText,
-  Download
+  Download,
+  ShieldAlert
 } from 'lucide-react';
 
 // firestore helpers used to resolve user avatars
@@ -194,6 +196,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract, onRequestExtin
           .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
           .map((entry: HistoryEntry, idx: number) => {
             const isExpanded = expandedEntries.includes(idx);
+            const hasSpecialChange = entry.changes.some((c) => c.special);
 
             return (
               <div key={idx} className="relative">
@@ -239,6 +242,11 @@ export function ContractDetailsModal({ isOpen, onClose, contract, onRequestExtin
                     </div>
 
                     <div className="flex items-center gap-3">
+                      {hasSpecialChange && (
+                        <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <ShieldAlert className="w-3 h-3" /> Valor Inicial alterado
+                        </span>
+                      )}
                       <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">
                         {entry.changes.length} alteraç{entry.changes.length === 1 ? 'ão' : 'ões'}
                       </span>
@@ -255,25 +263,39 @@ export function ContractDetailsModal({ isOpen, onClose, contract, onRequestExtin
                     <div className="p-4 pt-0 border-t border-gray-100 bg-gray-50/50 animate-in slide-in-from-top-2 duration-200">
                       <ul className="space-y-2 mt-4">
                         {entry.changes.map((chg: HistoryChange, ci: number) => (
-                          <li key={ci} className="text-sm flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2.5 rounded border border-gray-200 shadow-sm">
-                            <strong className="capitalize text-gray-700 min-w-[140px] flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                          <li
+                            key={ci}
+                            className={`text-sm flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded border shadow-sm ${
+                              chg.special ? 'bg-amber-50/60 border-amber-300' : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <strong className={`capitalize text-gray-700 min-w-[140px] flex items-center gap-2 ${chg.special ? 'text-amber-700' : ''}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${chg.special ? 'bg-amber-500' : 'bg-blue-400'}`} />
                               {(fieldLabels[chg.field] || chg.field)}:
                             </strong>
                             <div className="flex items-center gap-3 text-gray-600 flex-1 overflow-hidden">
                               <span 
-                                className="line-through opacity-60 bg-red-50 text-red-700 px-1.5 rounded truncate max-w-[120px]" 
+                                className={`line-through opacity-80 px-1.5 rounded truncate max-w-[140px] ${
+                                  chg.special ? 'bg-amber-100 text-amber-800 font-mono' : 'bg-red-50 text-red-700'
+                                }`} 
                                 title={String(chg.before) || 'Vazio'}
                               >
-                                {String(chg.before) || 'Vazio'}
+                                {chg.special ? formatCurrency(chg.before) : (String(chg.before) || 'Vazio')}
                               </span>
-                              <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                              <ArrowRight className={`w-3.5 h-3.5 flex-shrink-0 ${chg.special ? 'text-amber-500' : 'text-gray-400'}`} />
                               <span 
-                                className="truncate font-medium text-green-700 bg-green-50 px-1.5 rounded max-w-[120px]" 
+                                className={`truncate px-1.5 rounded max-w-[140px] ${
+                                  chg.special ? 'font-mono font-medium text-amber-900 bg-amber-100' : 'font-medium text-green-700 bg-green-50'
+                                }`} 
                                 title={String(chg.after)}
                               >
-                                {String(chg.after)}
+                                {chg.special ? formatCurrency(chg.after) : String(chg.after)}
                               </span>
+                              {chg.special && (
+                                <span className="shrink-0 text-[10px] font-bold uppercase bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                                  Campo Sensível
+                                </span>
+                              )}
                             </div>
                           </li>
                         ))}
@@ -467,7 +489,24 @@ export function ContractDetailsModal({ isOpen, onClose, contract, onRequestExtin
                                     <FileText className="w-3.5 h-3.5 text-[#0B2046] flex-shrink-0" />
                                     <span className="text-gray-700 flex-1 truncate">{doc.name}</span>
                                     <button
-                                      onClick={() => downloadBase64File(doc.base64, doc.name, doc.type)}
+                                      onClick={async () => {
+                                        try {
+                                          const blob = await resolveDocumentBlob(doc as any);
+                                          const url = URL.createObjectURL(blob);
+                                          const link = document.createElement('a');
+                                          link.href = url;
+                                          link.download = doc.name;
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                          URL.revokeObjectURL(url);
+                                        } catch (err) {
+                                          console.error('Download falhou, tentando abrir no navegador', err);
+                                          if ((doc as any).storageUrl) {
+                                            window.open((doc as any).storageUrl, '_blank');
+                                          }
+                                        }
+                                      }}
                                       className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
                                       title="Baixar documento"
                                     >

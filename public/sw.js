@@ -1,4 +1,4 @@
-const CACHE_NAME = 'secti-contratos-v1';
+const CACHE_NAME = 'secti-contratos-v2';
 const urlsToCache = [
   '/',
   '/index.html'
@@ -37,31 +37,47 @@ self.addEventListener('activate', (event) => {
 // Fetch event - network first strategy with proper POST handling
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const requestUrl = new URL(request.url);
-  
-  // Let the browser handle POSTs and external APIs directly.
-  if (request.method !== 'GET' || requestUrl.origin !== self.location.origin) {
+
+  // Never intercept non-GET requests.  POST/PUT/DELETE cannot be cached and
+  // attempting cache.put on them throws "Request method POST is unsupported".
+  // We return undefined so the browser handles the request normally.
+  if (request.method !== 'GET') {
     return;
   }
 
-  // Skip caching for Firebase/Firestore requests
-  if (request.url.includes('firebaseio.com') || 
+  let requestUrl;
+  try {
+    requestUrl = new URL(request.url);
+  } catch (e) {
+    return;
+  }
+
+  // Let the browser handle external origins directly (Firebase, Google, etc.).
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
+  // Skip caching for Firebase/Firestore requests explicitly to be safe.
+  if (request.url.includes('firebaseio.com') ||
       request.url.includes('googleapis.com') ||
-      request.url.includes('google.com/firestore')) {
-    console.log('[SW] Skipping cache for Firebase request:', request.url);
-    event.respondWith(fetch(request));
+      request.url.includes('google.com/firestore') ||
+      request.url.includes('firestore')) {
     return;
   }
 
-  // Network-first strategy for GET requests
+  // Network-first strategy for GET requests only.
   event.respondWith(
     fetch(request)
       .then((response) => {
         // Clone the response before caching
-        if (response && response.status === 200) {
+        if (response && response.status === 200 && request.method === 'GET') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
+            try {
+              cache.put(request, responseToCache);
+            } catch (e) {
+              // ignore put errors (e.g. unsupported request methods)
+            }
           });
         }
         return response;
@@ -70,7 +86,6 @@ self.addEventListener('fetch', (event) => {
         // If network fails, try cache
         return caches.match(request).then((cachedResponse) => {
           if (cachedResponse) {
-            console.log('[SW] Cache HIT:', request.url);
             return cachedResponse;
           }
           // If not in cache, return a basic offline page or error

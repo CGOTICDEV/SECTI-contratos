@@ -29,7 +29,7 @@ const GESTORES_FISCAIS_OFICIAIS = {
   'nathaly.nascimento@secti.ba.gov.br': { nome: 'NATHALY DA SILVA NASCIMENTO', tipo: 'fiscal' },
   'sueli.jesus@secti.ba.gov.br': { nome: 'SUELI DE JESUS SILVA', tipo: 'fiscal' },
   'valmir.ferreira@secti.ba.gov.br': { nome: 'VALMIR SANTOS FERREIRA FILHO', tipo: 'fiscal' },
-  'jose.evelin@secti.ba.gov.br': { nome: 'JÔSE EVELIN TELES CANDEIAS', tipo: 'fiscal' },
+  'evelin.candeias@secti.ba.gov.br': { nome: 'JÔSE EVELIN TELES CANDEIAS', tipo: 'fiscal' },
   'ariadna.flores@secti.ba.gov.br': { nome: 'ARIADNA COSTA FLORES', tipo: 'fiscal' },
   'ricardo.cavalcanti@secti.ba.gov.br': { nome: 'RICARDO JORGE CAVALCANTI CAVALCANTI FILHO', tipo: 'fiscal' },
   'kleber.freitas@secti.ba.gov.br': { nome: 'KLEBER ALMEIDA FREITAS', tipo: 'fiscal' }
@@ -110,7 +110,8 @@ async function getExpiringContracts() {
 
   snap.forEach((doc) => {
     const data = doc.data();
-    if (data.situacao === 'Vencido') return;
+    // Contratos encerrados ou vencidos nao disparam alertas de vencimento.
+    if (data.situacao === 'Vencido' || data.situacao === 'Encerrado') return;
 
     const days = daysRemaining(data.vigenciaAtual);
     const threshold = getExpiryThreshold(days);

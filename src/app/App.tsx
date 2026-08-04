@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 // KPI cards were replaced by a tabbed filter control
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -52,6 +54,8 @@ import { Contract, TermoAditivoDocument } from './types/contract';
 import { UserProfile } from './types/user';
 import { getContractStatus, computeChanges } from './utils/contract-helpers';
 import { Toaster, toast } from 'sonner';
+import { extractGestorFiscalFromText } from './utils/gestores-oficiais';
+import { saveTermoWithFallback } from './utils/save-termo';
 
 import { auth, db, addUser, subscribeUser } from '../firebase';
 import {
@@ -85,6 +89,21 @@ import {
 
 type FilterType = 'Todos' | '<15' | '<30' | '<60' | '<90';
 type ViewMode = 'dashboard' | 'charts' | 'profile';
+
+/** chaves de classificação disponíveis para a tabela */
+type TableSortKey = 'tipo' | 'alfabetica' | 'adicao' | 'valor' | 'saldo' | 'vigencia' | 'restantes';
+type TableSortDir = 'asc' | 'desc';
+
+/** direção padrão de cada modo de classificação */
+const SORT_DEFAULTS: Record<TableSortKey, TableSortDir> = {
+  tipo: 'asc',
+  alfabetica: 'asc',
+  adicao: 'desc', // recém-adicionados primeiro
+  valor: 'desc', // maior valor primeiro
+  saldo: 'desc', // maior saldo primeiro
+  vigencia: 'asc', // mais próxima de vencer primeiro
+  restantes: 'asc', // menor prazo restante primeiro
+};
 
 const TABLE_SCAN_BATCH_SIZE = 150;
 
@@ -219,6 +238,77 @@ const contractMatchesFilters = (contract: Contract, context: TableFilterContext)
   return true;
 };
 
+// retorna a estimativa de quando o registro foi adicionado ao sistema:
+// createdAt (novo) ou, para registros antigos, o timestamp do primeiro
+// registro de histórico.
+const getContractAddedAt = (contract: Contract): number => {
+  if (contract.createdAt) {
+    const t = new Date(contract.createdAt).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  if (contract.history && contract.history.length > 0) {
+    const t = new Date(contract.history[0].timestamp).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return 0;
+};
+
+const getContractNome = (contract: Contract): string =>
+  (contract.convenente || contract.empresa || contract.numeroContrato || '').toString().toLowerCase();
+
+const sortContractMatches = (matches: Contract[], key: TableSortKey, dir: TableSortDir) => {
+  if (matches.length < 2) return;
+
+  const multiplier = dir === 'asc' ? 1 : -1;
+
+  matches.sort((a, b) => {
+    let cmp = 0;
+
+    switch (key) {
+      case 'tipo': {
+        cmp = (a.tipoRegistro || '')
+          .toString()
+          .toLowerCase()
+          .localeCompare((b.tipoRegistro || '').toString().toLowerCase());
+        if (cmp === 0) {
+          cmp = (a.numeroContrato || a.numeroConvenio || '')
+            .toString()
+            .localeCompare((b.numeroContrato || b.numeroConvenio || '').toString());
+        }
+        break;
+      }
+      case 'alfabetica':
+        cmp = getContractNome(a).localeCompare(getContractNome(b), 'pt-BR');
+        break;
+      case 'adicao':
+        cmp = getContractAddedAt(a) - getContractAddedAt(b);
+        break;
+      case 'valor':
+        cmp = (a.valorAtual || 0) - (b.valorAtual || 0);
+        break;
+      case 'saldo':
+        cmp = (a.saldoDisponivel || 0) - (b.saldoDisponivel || 0);
+        break;
+      case 'vigencia':
+        cmp = (a.vigenciaAtual || '').localeCompare(b.vigenciaAtual || '');
+        break;
+      case 'restantes':
+        cmp = getContractStatus(a).daysRemaining - getContractStatus(b).daysRemaining;
+        break;
+    }
+
+    cmp = cmp * multiplier;
+
+    // desempate: numero do contrato/convênio para uma ordem estável
+    if (cmp === 0) {
+      cmp = (a.numeroContrato || a.numeroConvenio || '')
+        .toString()
+        .localeCompare((b.numeroContrato || b.numeroConvenio || '').toString());
+    }
+    return cmp;
+  });
+};
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -238,6 +328,8 @@ function App() {
   const [tablePageSize, setTablePageSize] = useState(25);
   const [tableTotalPages, setTableTotalPages] = useState(1);
   const [tableReloadToken, setTableReloadToken] = useState(0);
+  const [tableSortKey, setTableSortKey] = useState<TableSortKey>('tipo');
+  const [tableSortDir, setTableSortDir] = useState<TableSortDir>('asc');
   const tableCacheRef = useRef<TablePaginationCache>({
     signature: '',
     filteredMatches: [],
@@ -354,6 +446,8 @@ function App() {
     return JSON.stringify({
       activeFilter: tableFilterContext.activeFilter,
       searchQuery: tableFilterContext.searchQuery.trim().toLowerCase(),
+      sortKey: tableSortKey,
+      sortDir: tableSortDir,
       advancedFilters: {
         tipoRegistro: tableFilterContext.advancedFilters.tipoRegistro || '',
         situacao: tableFilterContext.advancedFilters.situacao || '',
@@ -373,7 +467,7 @@ function App() {
             : tableFilterContext.advancedFilters.diasVencimentoMax,
       },
     });
-  }, [tableFilterContext]);
+  }, [tableFilterContext, tableSortKey, tableSortDir]);
 
   const invalidateTableCache = (resetToFirstPage = false) => {
     tableCacheRef.current = {
@@ -469,6 +563,14 @@ function App() {
           return;
         }
 
+        // Quando todo o conjunto ja esta carregado (reachedEnd), ordenamos
+        // conforme o modo de classificacao escolhido pelo usuario
+        // (padrao: tipo de instrumento + numero do contrato).  Isso garante
+        // ordem estavel e previsivel sem quebrar a paginacao partial do Firestore.
+        if (cache.reachedEnd && cache.filteredMatches.length > 1) {
+          sortContractMatches(cache.filteredMatches, tableSortKey, tableSortDir);
+        }
+
         const startIndex = (tableCurrentPage - 1) * tablePageSize;
         const endIndex = startIndex + tablePageSize;
         const currentRows = cache.filteredMatches.slice(startIndex, endIndex);
@@ -528,10 +630,32 @@ function App() {
       // ensure editor array is updated with current user email
       const editorEmail = userProfile?.email?.toLowerCase();
 
+      // Quando o registro e uma Portaria (ou outro instrumento que costuma
+      // nomear gestores/fiscais), tentamos extrair do objeto/descricao os
+      // emails e nomes citados e aplica-los automaticamente ao contrato.
+      let autoUpdateFromText: Partial<Contract> = {};
+      const searchText = [
+        contractData.objeto,
+        contractData.ultimoTermoAditivo,
+        contractData.numeroContrato,
+      ].filter(Boolean).join('\n');
+      if (contractData.tipoRegistro === 'portaria' && searchText) {
+        const parsed = extractGestorFiscalFromText(searchText);
+        if (parsed.gestorEmail) {
+          autoUpdateFromText.gestor = parsed.gestor;
+          autoUpdateFromText.gestorEmail = parsed.gestorEmail;
+        }
+        if (parsed.fiscalEmails && parsed.fiscalEmails.length > 0) {
+          autoUpdateFromText.fiscal = parsed.fiscal;
+          autoUpdateFromText.fiscalEmail = parsed.fiscalEmails.length === 1 ? parsed.fiscalEmails[0] : parsed.fiscalEmails;
+        }
+      }
+      const mergedData: Partial<Contract> = { ...contractData, ...autoUpdateFromText };
+
       if (editingContract) {
         const ref = doc(db, 'contracts', editingContract.id);
         // merge incoming values with existing contract
-        const after: Contract = { ...editingContract, ...contractData } as Contract;
+        const after: Contract = { ...editingContract, ...mergedData } as Contract;
 
         // add current user to emailEditor if not already present
         if (editorEmail) {
@@ -559,7 +683,7 @@ function App() {
           }
 
           const sanitizedUpdate = sanitizeFirestoreData({
-            ...contractData,
+            ...mergedData,
             ...(after.emailEditor ? { emailEditor: after.emailEditor } : {}),
             history: historyToWrite,
           });
@@ -570,7 +694,7 @@ function App() {
           toast.info('Nenhuma alteração detectada.');
         }
       } else {
-        const newContract: any = { ...contractData, history: [], apostilasCount: 0 };
+        const newContract: any = { ...mergedData, history: [], apostilasCount: 0, createdAt: new Date().toISOString() };
         if (userProfile) {
           const nameOrEmail = userProfile.displayName || userProfile.email;
           if (userProfile.role === 'gestor') newContract.gestor = nameOrEmail;
@@ -668,12 +792,34 @@ function App() {
         newApostilas = newApostilas.slice(-MAX_APOSTILAS);
       }
 
+      // Detectar gestores/fiscais citados na apostila (texto pode ser uma
+      // portaria/nomeacao que troca os responsaveis do contrato).
+      const parsed = extractGestorFiscalFromText(note);
+      const gestorChanges: any = {};
+      if (parsed.gestorEmail && parsed.gestorEmail !== current.gestorEmail) {
+        gestorChanges.gestor = parsed.gestor || current.gestor;
+        gestorChanges.gestorEmail = parsed.gestorEmail;
+      }
+      const currentFiscalEmails: string[] = Array.isArray(current.fiscalEmail)
+        ? current.fiscalEmail
+        : (current.fiscalEmail ? [current.fiscalEmail] : []);
+      const newFiscalEmails = parsed.fiscalEmails ?? [];
+      const fiscalChanged =
+        newFiscalEmails.length > 0 &&
+        JSON.stringify([...newFiscalEmails].sort()) !==
+          JSON.stringify([...currentFiscalEmails].sort());
+      if (fiscalChanged) {
+        gestorChanges.fiscal = parsed.fiscal || current.fiscal;
+        gestorChanges.fiscalEmail = newFiscalEmails.length === 1 ? newFiscalEmails[0] : newFiscalEmails;
+      }
+
       const updated: Contract = {
         ...current,
         valorAtual: novoValorAtual,
         valorPagoAcumulado: novoValorPagoAcumulado,
         saldoDisponivel: novoSaldo,
         apostilas: newApostilas,
+        ...gestorChanges,
       };
 
       // compute minimal change log; computeChanges now ignores apostilas/history
@@ -685,6 +831,18 @@ function App() {
         before: current.apostilas ? current.apostilas.length : 0,
         after: newApostilas.length,
       });
+      if (Object.keys(gestorChanges).length > 0) {
+        changes.push({
+          field: 'gestorEmail',
+          before: current.gestorEmail ?? null,
+          after: gestorChanges.gestorEmail ?? null,
+        });
+        changes.push({
+          field: 'fiscalEmail',
+          before: currentFiscalEmails.length ? currentFiscalEmails : null,
+          after: gestorChanges.fiscalEmail ?? null,
+        });
+      }
 
       const historyEntry: any = {
         timestamp: new Date().toISOString(),
@@ -700,15 +858,30 @@ function App() {
         historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
       }
 
-      await updateDoc(ref, {
+      const payload: any = {
         valorAtual: updated.valorAtual,
         valorPagoAcumulado: updated.valorPagoAcumulado,
         saldoDisponivel: updated.saldoDisponivel,
         apostilas: newApostilas,
         apostilasCount: newApostilas.length,
         history: historyToWrite,
-      } as any);
-      toast.success('Apostila registrada com sucesso.');
+      };
+      // adiciona campos derivados da apostila (troca de gestor/fiscal)
+      if (gestorChanges.gestor !== undefined) payload.gestor = gestorChanges.gestor;
+      if (gestorChanges.gestorEmail !== undefined) payload.gestorEmail = gestorChanges.gestorEmail;
+      if (gestorChanges.fiscal !== undefined) payload.fiscal = gestorChanges.fiscal;
+      if (gestorChanges.fiscalEmail !== undefined) payload.fiscalEmail = gestorChanges.fiscalEmail;
+
+      await updateDoc(ref, payload as any);
+
+      // atualiza estado local imediatamente para refletir troca de gestor/fiscal
+      setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, ...gestorChanges, valorAtual: updated.valorAtual, valorPagoAcumulado: updated.valorPagoAcumulado, saldoDisponivel: updated.saldoDisponivel, apostilas: newApostilas } : c)));
+
+      if (Object.keys(gestorChanges).length > 0) {
+        toast.success('Apostila registrada. Gestor/fiscal atualizados conforme texto informado.');
+      } else {
+        toast.success('Apostila registrada com sucesso.');
+      }
       setApostilaContract(null);
       invalidateTableCache();
     } catch (err) {
@@ -727,138 +900,111 @@ function App() {
     prorrogacao?: string,
     documents?: any[]
   ) => {
+    const step = (msg: string, data?: any) => console.log(`[TermoAditivo ${id}] ${msg}`, data ?? '');
     try {
-      if (!termoAditivoContract) return;
-      const ref = doc(db, 'contracts', id);
+      if (!termoAditivoContract) {
+        step('abortado: termoAditivoContract nulo');
+        return;
+      }
       const current = termoAditivoContract;
-      
-      // Preparar objetos de documentos serializáveis
-      let processedDocuments: any[] | undefined;
-      if (documents && documents.length > 0) {
-        // Calcular tamanho total estimado dos documentos em base64
-        const totalSize = documents.reduce((sum, doc) => sum + (doc.base64?.length || 0), 0);
-        const MAX_TOTAL_BASE64_SIZE = 500000; // ~500KB em base64 (seguro para Firestore)
-        
-        if (totalSize > MAX_TOTAL_BASE64_SIZE) {
-          toast.error(
-            `Documentos muito grandes (${Math.round(totalSize / 1024)}KB). ` +
-            `Reduza o total para menos de ${Math.round(MAX_TOTAL_BASE64_SIZE / 1024)}KB ou use arquivos menores.`
-          );
-          return;
+      step('inicio', { note: note.slice(0, 50), ajuste, vigenciaInicial, prorrogacao, docCount: documents?.length ?? 0 });
+
+      // Prepara documentos serializaveis (sem compressao — fica por conta do
+      // fallback caso o documento exceda o limite do Firestore).
+      const serializedDocs = (documents ?? []).map((d: any) => {
+        const s: any = {
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          base64: d.base64,
+          uploadedAt: d.uploadedAt,
+          size: d.size,
+        };
+        if (userProfile?.email || userProfile?.uid) {
+          s.uploadedBy = userProfile.email?.toLowerCase() || userProfile.uid;
         }
-        
-        // Serializar documentos removendo propriedades undefined
-        processedDocuments = documents.map(doc => {
-          const serialized: any = {
-            id: doc.id,
-            name: doc.name,
-            type: doc.type,
-            base64: doc.base64,
-            uploadedAt: doc.uploadedAt,
-            size: doc.size
-          };
-          if (userProfile?.email || userProfile?.uid) {
-            serialized.uploadedBy = userProfile.email?.toLowerCase() || userProfile.uid;
-          }
-          return serialized;
-        });
-      }
+        return s;
+      });
 
-      const newEntry: any = {
-        timestamp: new Date().toISOString(),
+      const timestamp = new Date().toISOString();
+      const entry: any = {
+        timestamp,
         note,
+        documents: serializedDocs.length > 0 ? serializedDocs : undefined,
       };
-      
       if (userProfile?.email || userProfile?.uid) {
-        newEntry.user = userProfile.email?.toLowerCase() || userProfile.uid;
+        entry.user = userProfile.email?.toLowerCase() || userProfile.uid;
       }
-      
-      if (tipo) {
-        newEntry.tipo = tipo;
-      }
-      
-      if (current.vigenciaAtual) {
-        newEntry.originalVigencia = current.vigenciaAtual;
-      }
-      
-      if (ajuste && ajuste !== 0) {
-        newEntry.ajuste = ajuste;
-      }
-      if (vigenciaInicial) newEntry.vigenciaInicial = vigenciaInicial;
-      if (prorrogacao) newEntry.prorrogacao = prorrogacao;
-      if (processedDocuments && processedDocuments.length > 0) {
-        newEntry.documents = processedDocuments;
-      }
+      if (tipo) entry.tipo = tipo;
+      if (current.vigenciaAtual) entry.originalVigencia = current.vigenciaAtual;
+      if (ajuste && ajuste !== 0) entry.ajuste = ajuste;
+      if (vigenciaInicial) entry.vigenciaInicial = vigenciaInicial;
+      if (prorrogacao) entry.prorrogacao = prorrogacao;
 
-      // termoaditivo always increases valorAtual
+      //Calcula novos valores
       let novoValorAtual = current.valorAtual || 0;
-      if (ajuste > 0) {
-        novoValorAtual += ajuste;
-      }
+      if (ajuste > 0) novoValorAtual += ajuste;
       const novoSaldo = Math.round((novoValorAtual - (current.valorPagoAcumulado || 0)) * 100) / 100;
 
-      let newTermos = [...(current.termosAditivos || []), newEntry];
-      // we may want to keep list bounded, reuse same MAX_APOSTILAS for simplicity
-      if (newTermos.length > MAX_APOSTILAS) {
-        newTermos = newTermos.slice(-MAX_APOSTILAS);
+      const contractFieldUpdates: any = {
+        valorAtual: novoValorAtual,
+        saldoDisponivel: novoSaldo,
+      };
+      if (vigenciaInicial) contractFieldUpdates.vigenciaInicial = vigenciaInicial;
+      if (prorrogacao) contractFieldUpdates.vigenciaAtual = prorrogacao;
+
+      // Inicia spinner visual: toast de progresso
+      const progressToast = toast.loading('Salvando termo aditivo...');
+
+      const result = await saveTermoWithFallback({
+        id,
+        tipo: 'termo',
+        entry,
+        current,
+        contractFieldUpdates,
+        log: step,
+      });
+
+      toast.dismiss(progressToast);
+
+      if (!result.success) {
+        step('Falha final', result.error);
+        const err = result.error || '';
+        if (err.includes('Falha no upload') || err.includes('Storage') || err.includes('storage')) {
+          toast.error('Falha ao enviar documento para o Storage. Verifique conexao/permissoes.');
+        } else {
+          toast.error('Falha ao salvar termo aditivo.');
+        }
+        return;
       }
+
+      // Atualiza estado local imediatamente para feedback visual
+      const updatedTermos = [...(current.termosAditivos || []), entry];
+      if (updatedTermos.length > 200) updatedTermos.splice(0, updatedTermos.length - 200);
 
       const updated: Contract = {
         ...current,
         valorAtual: novoValorAtual,
         saldoDisponivel: novoSaldo,
-        termosAditivos: newTermos,
+        termosAditivos: updatedTermos,
       };
       if (vigenciaInicial) updated.vigenciaInicial = vigenciaInicial;
-      if (prorrogacao) {
-        updated.vigenciaAtual = prorrogacao; // apply extension to contract itself
-      }
+      if (prorrogacao) updated.vigenciaAtual = prorrogacao;
 
-      const changes = computeChanges(current, updated);
-      changes.push({
-        field: 'termosAditivos',
-        before: current.termosAditivos ? current.termosAditivos.length : 0,
-        after: newTermos.length,
-      });
-
-      const historyEntry: any = {
-        timestamp: new Date().toISOString(),
-        user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
-        changes,
-      };
-
-      let historyToWrite: any = historyEntry;
-      if (current.history) {
-        const arr = [...current.history, historyEntry];
-        historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
-      }
-
-      const payload: any = {
-        valorAtual: updated.valorAtual,
-        saldoDisponivel: updated.saldoDisponivel,
-        termosAditivos: updated.termosAditivos,
-        history: historyToWrite,
-      };
-      if (vigenciaInicial) payload.vigenciaInicial = vigenciaInicial;
-      if (prorrogacao) payload.vigenciaAtual = prorrogacao;
-      await updateDoc(ref, payload as any);
-
-      // also update local state so UI reflects change immediately
       setContracts((prev) => prev.map((c) => (c.id === id ? updated : c)));
       if (termoAditivoContract && termoAditivoContract.id === id) {
         setTermoAditivoContract(updated);
       }
 
-      toast.success('Termo aditivo registrado com sucesso.');
+      if (result.wentToStorage) {
+        toast.success(`Termo aditivo salvo. ${result.uploadedUrls.length} documento(s) enviado(s) ao Storage.`);
+      } else {
+        toast.success('Termo aditivo registrado com sucesso.');
+      }
       invalidateTableCache();
     } catch (err: any) {
-      console.error(err);
-      const errorMsg = err?.message || 'Falha ao salvar termo aditivo.';
-      if (errorMsg.includes('document size') || errorMsg.includes('invalid nested entity')) {
-        toast.error('Documentos muito grandes para o Firestore. Use arquivos menores (total < 500KB).');
-      } else {
-        toast.error('Falha ao salvar termo aditivo.');
-      }
+      console.error('[TermoAditivo] erro inesperado', err);
+      toast.error('Falha ao salvar termo aditivo.');
     }
   };
 
@@ -869,71 +1015,92 @@ function App() {
     dataExtincao?: string,
     documents?: TermoAditivoDocument[]
   ) => {
+    const step = (msg: string, data?: any) => console.log(`[Extincao ${id}] ${msg}`, data ?? '');
     try {
-      if (!extincaoContract) return;
-      const ref = doc(db, 'contracts', id);
+      if (!extincaoContract) {
+        step('abortado: extincaoContract nulo');
+        return;
+      }
       const current = extincaoContract;
       const now = new Date().toISOString();
+      step('inicio', { tipo, note: note.slice(0, 50), dataExtincao, docCount: documents?.length ?? 0 });
 
       const fecha = dataExtincao || current.vigenciaAtual || new Date().toISOString().slice(0, 10);
 
-      const newEntry: any = {
+      const serializedDocs = (documents ?? []).map((d: any) => {
+        const s: any = {
+          id: d.id,
+          name: d.name,
+          type: d.type,
+          base64: d.base64,
+          uploadedAt: d.uploadedAt,
+          size: d.size,
+        };
+        if (userProfile?.email || userProfile?.uid) {
+          s.uploadedBy = userProfile.email?.toLowerCase() || userProfile.uid;
+        }
+        return s;
+      });
+
+      const entry: any = {
         timestamp: now,
         user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
         tipo,
         note,
-        ...(documents && documents.length > 0 ? { documents } : {}),
+        documents: serializedDocs.length > 0 ? serializedDocs : undefined,
       };
 
-      let newTermos = [...(current.termosAditivos || []), newEntry];
-      if (newTermos.length > MAX_APOSTILAS) {
-        newTermos = newTermos.slice(-MAX_APOSTILAS);
+      const contractFieldUpdates: any = {
+        situacao: 'Encerrado',
+        vigenciaAtual: fecha,
+      };
+
+      const progressToast = toast.loading('Registrando extinção...');
+      const result = await saveTermoWithFallback({
+        id,
+        tipo: 'extincao',
+        entry,
+        current,
+        contractFieldUpdates,
+        log: step,
+      });
+      toast.dismiss(progressToast);
+
+      if (!result.success) {
+        step('Falha final', result.error);
+        const err = result.error || '';
+        if (err.includes('Falha no upload') || err.includes('Storage') || err.includes('storage')) {
+          toast.error('Falha ao enviar documento para o Storage. Verifique conexao/permissoes.');
+        } else {
+          toast.error('Falha ao registrar extinção contratual.');
+        }
+        return;
       }
+
+      // Atualiza estado local
+      const updatedTermos = [...(current.termosAditivos || []), entry];
+      if (updatedTermos.length > 200) updatedTermos.splice(0, updatedTermos.length - 200);
 
       const updated: Contract = {
         ...current,
-        situacao: 'Vencido',
+        situacao: 'Encerrado',
         vigenciaAtual: fecha,
-        termosAditivos: newTermos,
+        termosAditivos: updatedTermos,
       };
-
-      const changes = computeChanges(current, updated);
-      changes.push({
-        field: 'termosAditivos',
-        before: current.termosAditivos ? current.termosAditivos.length : 0,
-        after: newTermos.length,
-      });
-
-      const historyEntry: any = {
-        timestamp: now,
-        user: userProfile?.email?.toLowerCase() || userProfile?.uid || null,
-        changes,
-      };
-
-      let historyToWrite: any = historyEntry;
-      if (current.history) {
-        const arr = [...current.history, historyEntry];
-        historyToWrite = arr.slice(-MAX_HISTORY_ENTRIES);
-      }
-
-      const payload: any = {
-        situacao: 'Vencido',
-        vigenciaAtual: fecha,
-        termosAditivos: newTermos,
-        history: historyToWrite,
-      };
-
-      await updateDoc(ref, payload as any);
 
       setContracts((prev) => prev.map((c) => (c.id === id ? updated : c)));
       if (extincaoContract && extincaoContract.id === id) {
         setExtincaoContract(updated);
       }
 
-      toast.success('Extinção contratual registrada com sucesso.');
+      if (result.wentToStorage) {
+        toast.success(`Extinção registrada. ${result.uploadedUrls.length} documento(s) enviado(s) ao Storage. Contrato marcado como Encerrado.`);
+      } else {
+        toast.success('Extinção contratual registrada — contrato marcado como Encerrado.');
+      }
       invalidateTableCache();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[Extincao] erro inesperado', err);
       toast.error('Falha ao registrar extinção contratual.');
     }
   };
@@ -1365,9 +1532,9 @@ function App() {
                       </Tabs>
                     </div>
 
-                    {/* SEARCH / FILTER PANEL */}
-                    <div className="bg-white p-4 sm:p-5 rounded-lg border border-secti-border shadow-sm mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                      <div className="relative w-full sm:max-w-xl">
+                    {/* SEARCH / FILTER / SORT PANEL */}
+                    <div className="bg-white p-4 sm:p-5 rounded-lg border border-secti-border shadow-sm mb-4 sm:mb-6 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
+                      <div className="relative w-full lg:max-w-xl">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           placeholder="Pesquisar por empresa, contrato, convênio..."
@@ -1376,12 +1543,49 @@ function App() {
                           className="pl-10 h-11 w-full border-gray-200 bg-gray-50 focus:bg-white focus:ring-1 focus:ring-[#00D1FF] transition-colors rounded-md text-sm"
                         />
                       </div>
-                      <AdvancedFiltersPanel
-                        filters={advancedFilters}
-                        onFiltersChange={setAdvancedFilters}
-                        gestores={uniqueGestores}
-                        fiscais={uniqueFiscais}
-                      />
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
+                        <AdvancedFiltersPanel
+                          filters={advancedFilters}
+                          onFiltersChange={setAdvancedFilters}
+                          gestores={uniqueGestores}
+                          fiscais={uniqueFiscais}
+                        />
+                        {/* Classificação da tabela */}
+                        <div className="flex items-center gap-1.5">
+                          <Select
+                            value={tableSortKey}
+                            onValueChange={(v) => {
+                              const key = v as TableSortKey;
+                              setTableSortKey(key);
+                              setTableSortDir(SORT_DEFAULTS[key]);
+                              setTableCurrentPage(1);
+                            }}
+                          >
+                            <SelectTrigger className="h-11 w-full sm:w-[230px] bg-gray-50 border-gray-200 text-sm" aria-label="Classificar por">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tipo">Tipo + Número</SelectItem>
+                              <SelectItem value="alfabetica">Nome (A–Z)</SelectItem>
+                              <SelectItem value="adicao">Adição no sistema</SelectItem>
+                              <SelectItem value="valor">Valor atual</SelectItem>
+                              <SelectItem value="saldo">Saldo disponível</SelectItem>
+                              <SelectItem value="vigencia">Vigência (término)</SelectItem>
+                              <SelectItem value="restantes">Prazo restante</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-11 w-11 shrink-0 border-gray-200 text-gray-600"
+                            onClick={() => setTableSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                            title={tableSortDir === 'asc' ? 'Ordem crescente — clique para decrescente' : 'Ordem decrescente — clique para crescente'}
+                            aria-label="Alternar direção da ordem"
+                          >
+                            {tableSortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* TABLE AREA */}

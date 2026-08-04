@@ -17,7 +17,7 @@ import { Badge } from './ui/badge';
 
 export interface AdvancedFilters {
   tipoRegistro?: 'contrato' | 'convenio' | 'todos';
-  situacao?: 'Vigente' | 'Vencido' | 'Suspenso' | 'todos';
+  situacao?: 'Vigente' | 'Vencido' | 'Suspenso' | 'Encerrado' | 'todos';
   gestor?: string;
   fiscal?: string;
   empresa?: string;
@@ -130,6 +130,7 @@ export function AdvancedFiltersPanel({
                 <SelectItem value="Vigente">Vigente</SelectItem>
                 <SelectItem value="Vencido">Vencido</SelectItem>
                 <SelectItem value="Suspenso">Suspenso</SelectItem>
+                <SelectItem value="Encerrado">Encerrado</SelectItem>
               </SelectContent>
             </Select>
           </div>

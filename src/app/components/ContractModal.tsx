@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Contract } from '../types/contract';
-import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake, Terminal } from 'lucide-react';
+import { Calendar, DollarSign, Info, FileText, CheckCircle2, Handshake, Terminal, ShieldAlert } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { formatCurrency, formatDate } from '../utils/contract-helpers';
 import { GuiaPanel } from './GuiaPanel';
@@ -85,6 +85,9 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
   };
 
   const isCCC = !!currentUser && currentUser.role !== 'gestor' && currentUser.role !== 'fiscal';
+  // apenas membros da CCC podem editar o valor inicial de contratos existentes;
+  // a alteração fica sinalizada no histórico do contrato
+  const canEditValorInicial = !!contract && currentUser?.role === 'ccc';
 
   // Helper function to determine if a type should show convenio-specific fields
   const isConvenioLike = (tipo?: string) => {
@@ -350,6 +353,7 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                           <SelectItem value="Vigente">Vigente</SelectItem>
                           <SelectItem value="Suspenso">Suspenso</SelectItem>
                           <SelectItem value="Vencido">Vencido</SelectItem>
+                          <SelectItem value="Encerrado">Encerrado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -572,17 +576,23 @@ export function ContractModal({ isOpen, onClose, onSave, contract, currentUser, 
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Valor inicial do contrato (R$)</Label>
                       <CurrencyInput
-                        className="bg-gray-50 font-mono text-lg"
+                        className={`bg-gray-50 font-mono text-lg ${canEditValorInicial ? 'border-amber-300 focus:ring-amber-400' : ''}`}
                         value={formData.valorInicial ?? 0}
                         onValueChange={(num) => {
                           setFormData((prev) => ({
                             ...prev,
                             valorInicial: num,
-                            valorAtual: prev.valorAtual === 0 ? num : prev.valorAtual,
+                            valorAtual: !contract && prev.valorAtual === 0 ? num : prev.valorAtual,
                           }));
                         }}
-                        disabled={!!contract}
+                        disabled={!!contract && !canEditValorInicial}
                       />
+                      {canEditValorInicial && (
+                        <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                          <ShieldAlert className="w-3 h-3 shrink-0" />
+                          Alterações neste campo ficam sinalizadas no histórico do contrato.
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase text-secti-muted">Valor Atual do Contrato (R$)</Label>

@@ -16,6 +16,7 @@ import {
   isValidFileType, 
   isValidFileSize 
 } from '../utils/file-helpers';
+import { resolveDocumentBlob } from '../utils/storage-fallback';
 import { toast } from 'sonner';
 
 interface TermoAditivoModalProps {
@@ -59,8 +60,8 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
-  const MAX_FILE_SIZE_MB = 2; // 2 MB máximo por arquivo
-  const MAX_TOTAL_SIZE_MB = 0.5; // ~500KB total em base64 para Firestore
+  const MAX_FILE_SIZE_MB = 5; // 5 MB maximo por arquivo (a compressao reduz depois)
+  const MAX_TOTAL_SIZE_MB = 5; // budget flexivel — os PDFs sao comprimidos no save
 
   // Função helper para formatar o tipo do termo aditivo
   const formatTipo = (tipo?: string): string => {
@@ -167,8 +168,28 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
     setDocuments(prev => prev.filter(doc => doc.id !== docId));
   };
 
-  const handleDownloadDocument = (doc: TermoAditivoDocument) => {
-    downloadBase64File(doc.base64, doc.name, doc.type);
+  const handleDownloadDocument = async (doc: TermoAditivoDocument) => {
+    try {
+      // Documentos salvos no Storage (storageUrl) sao baixados direto; os em
+      // base64 seguem pelo fluxo tradicional. resolveDocumentBlob cobre ambos.
+      const blob = await resolveDocumentBlob(doc as any);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download falhou, tentando abrir no navegador', err);
+      // fallback: abrir a URL do Storage direto (bypass de CORS)
+      if (doc.storageUrl) {
+        window.open(doc.storageUrl, '_blank');
+      } else {
+        toast.error('Não foi possível baixar o documento.');
+      }
+    }
   };
 
   const handleGuiaSuggestion = (sugestao: GuiaTermoSuggestion) => {
@@ -260,8 +281,11 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
                             <div key={docIdx} className="flex items-center gap-2 text-[11px]">
                               <FileText className="w-3 h-3 text-[#0B2046]" />
                               <span className="text-gray-600">{doc.name}</span>
+                              {doc.storageUrl && (
+                                <span className="text-[9px] text-blue-500 bg-blue-50 px-1 rounded" title={`Storage: ${doc.storagePath ?? ''}`}>Storage</span>
+                              )}
                               <button
-                                onClick={() => downloadBase64File(doc.base64, doc.name, doc.type)}
+                                onClick={() => handleDownloadDocument(doc)}
                                 className="text-blue-600 hover:text-blue-800 underline"
                                 title="Baixar documento"
                               >
@@ -359,8 +383,8 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
                 </label>
               </div>
               <p className="text-[11px] text-gray-500">
-                Tamanho máximo: {MAX_FILE_SIZE_MB} MB por arquivo, {Math.round(MAX_TOTAL_SIZE_MB * 1024)}KB total. 
-                Use arquivos compactos para melhor desempenho.
+                Tamanho máximo: {MAX_FILE_SIZE_MB} MB por arquivo. Os PDFs são
+                comprimidos automaticamente antes de salvar para caber no Firestore.
               </p>
 
               {/* Lista de documentos anexados */}

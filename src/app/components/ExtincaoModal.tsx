@@ -8,13 +8,14 @@ import { Contract, TermoAditivoDocument } from '../types/contract';
 import { FileX, FileText, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate } from '../utils/contract-helpers';
-import { 
-  fileToBase64, 
-  downloadBase64File, 
-  formatFileSize, 
-  isValidFileType, 
-  isValidFileSize 
+import {
+  fileToBase64,
+  downloadBase64File,
+  formatFileSize,
+  isValidFileType,
+  isValidFileSize
 } from '../utils/file-helpers';
+import { resolveDocumentBlob } from '../utils/storage-fallback';
 
 interface ExtincaoModalProps {
   isOpen: boolean;
@@ -59,8 +60,8 @@ export function ExtincaoModal({ isOpen, onClose, contract, onSave }: ExtincaoMod
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
-  const MAX_FILE_SIZE_MB = 2; // 2 MB máximo por arquivo
-  const MAX_TOTAL_SIZE_MB = 0.5; // ~500KB total em base64 para Firestore
+  const MAX_FILE_SIZE_MB = 5; // 5 MB maximo por arquivo (a compressao reduz depois)
+  const MAX_TOTAL_SIZE_MB = 5; // budget flexivel — os PDFs sao comprimidos no save
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -131,8 +132,25 @@ export function ExtincaoModal({ isOpen, onClose, contract, onSave }: ExtincaoMod
     setDocuments(prev => prev.filter((doc) => doc.id !== docId));
   };
 
-  const handleDownloadDocument = (doc: TermoAditivoDocument) => {
-    downloadBase64File(doc.base64, doc.name, doc.type);
+  const handleDownloadDocument = async (doc: TermoAditivoDocument) => {
+    try {
+      const blob = await resolveDocumentBlob(doc as any);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download falhou, tentando abrir no navegador', err);
+      if (doc.storageUrl) {
+        window.open(doc.storageUrl, '_blank');
+      } else {
+        toast.error('Não foi possível baixar o documento.');
+      }
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {

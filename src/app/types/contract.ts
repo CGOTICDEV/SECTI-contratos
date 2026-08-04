@@ -2,6 +2,8 @@ export interface HistoryChange {
   field: keyof Contract;
   before: any;
   after: any;
+  /** true quando a alteração envolve um campo sensível (ex: valorInicial) que merece destaque especial no histórico */
+  special?: boolean;
 }
 
 export interface HistoryEntry {
@@ -32,6 +34,12 @@ export interface TermoAditivoDocument {
   uploadedBy?: string;
   uploadedAt: string;
   size: number; // tamanho em bytes
+  /** Quando o arquivo e muito grande para o Firestore, ele e enviado para o
+   * Firebase Storage e o documento guarda apenas a URL publica e o caminho
+   * dentro do bucket.  O base64 fica vazio nesse caso para nao estourar o
+   * limite do documento do Firestore. */
+  storageUrl?: string;
+  storagePath?: string;
 }
 
 export interface TermoAditivo {
@@ -73,6 +81,8 @@ export interface Document {
 
 export interface Contract {
   id: string;
+  /** data de criação do registro no sistema (ordem de adição) */
+  createdAt?: string;
   /** diferenciar um contrato comum de um registro de convênio */
   tipoRegistro: 'contrato' | 'convenio' | 'termoAdesao' | 'acordoCooperacaoTecnica' | 
     'acordoConsorcial' | 'acordoCooperacaoInternacional' | 'convenioCooperacaoTecnica' | 
@@ -90,7 +100,10 @@ export interface Contract {
   fiscal: string;
   fiscalEmail?: string | string[];
   ccc?: string;
-  situacao: 'Vigente' | 'Vencido' | 'Suspenso';
+  situacao: 'Vigente' | 'Vencido' | 'Suspenso' | 'Encerrado';
+  /** tag "CONCLUÍDO": quando habilitada, o instrumento é tratado como
+   *  encerrado e o sistema deixa de encaminhar avisos de vencimento */
+  concluido?: boolean;
   vigenciaInicial: string;
   vigenciaAtual: string;
   ultimoTermoAditivo?: string;

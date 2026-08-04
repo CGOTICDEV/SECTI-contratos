@@ -19,6 +19,19 @@ export function calculateDaysRemaining(vigenciaAtual: string): number {
 }
 
 export function getContractStatus(contract: Contract): StatusInfo {
+  // Status "Encerrado" encerra o contrato: nenhum email de vencimento e emitido
+  // e o contrato nao aparece nas faixas <15/<30/<60/<90 dias.
+  if (contract.situacao === 'Encerrado') {
+    return {
+      type: 'expired',
+      daysRemaining: -1,
+      label: 'Encerrado',
+      bgColor: 'bg-gray-100',
+      textColor: 'text-gray-700',
+      borderColor: 'border-gray-300',
+    };
+  }
+
   const daysRemaining = calculateDaysRemaining(contract.vigenciaAtual);
 
   if (daysRemaining < 0 || contract.situacao === 'Vencido') {
@@ -84,6 +97,20 @@ export function formatCurrency(value?: number | null): string {
 
 export function formatDate(dateString: string): string {
   if (!dateString) return '-';
+  // Strings no formato YYYY-MM-DD (ou YYYY-MM-DDTHH:MM:SS...) sao interpretadas
+  // como meia-noite em UTC pelo construtor Date. Ao converter para o timezone
+  // local do usuario (potencialmente UTC-3), o calendario retrocede um dia.
+  // Para datas puras (sem hora) tratamos como data local no mesmo dia.
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(dateString);
+  if (dateOnlyMatch) {
+    const [, y, m, d] = dateOnlyMatch;
+    const day = parseInt(d, 10);
+    const month = parseInt(m, 10);
+    const year = parseInt(y, 10);
+    if (day > 0 && day <= 31 && month > 0 && month <= 12 && year > 0) {
+      return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    }
+  }
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
   try {
@@ -122,7 +149,14 @@ export function computeChanges(
     const newVal = (after as any)[key];
     if (newVal === undefined) continue;
     if (oldVal !== newVal) {
-      changes.push({ field: key, before: oldVal ?? null, after: newVal });
+      changes.push({
+        field: key,
+        before: oldVal ?? null,
+        after: newVal,
+        // alterações no valor inicial são consideradas sensíveis e ganham
+        // destaque especial no histórico do contrato
+        ...(key === 'valorInicial' ? { special: true } : {}),
+      });
     }
   }
 
