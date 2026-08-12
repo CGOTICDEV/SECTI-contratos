@@ -930,20 +930,32 @@ function App() {
       const entry: any = {
         timestamp,
         note,
-        documents: serializedDocs.length > 0 ? serializedDocs : undefined,
       };
+      // Firestore rejeita campos undefined — só inclui documents se houver.
+      if (serializedDocs.length > 0) entry.documents = serializedDocs;
       if (userProfile?.email || userProfile?.uid) {
         entry.user = userProfile.email?.toLowerCase() || userProfile.uid;
       }
       if (tipo) entry.tipo = tipo;
       if (current.vigenciaAtual) entry.originalVigencia = current.vigenciaAtual;
-      if (ajuste && ajuste !== 0) entry.ajuste = ajuste;
+      // Para supressao, salvar ajuste como negativo para exibicao correta do sinal.
+      // O calculo do contrato usa Math.abs() para subtrair, entao funciona de qualquer forma.
+      if (ajuste && ajuste !== 0) {
+        entry.ajuste = tipo === 'supressao' ? -Math.abs(ajuste) : ajuste;
+      }
       if (vigenciaInicial) entry.vigenciaInicial = vigenciaInicial;
       if (prorrogacao) entry.prorrogacao = prorrogacao;
 
       //Calcula novos valores
+      // Supressao subtrai do valor atual; acrescimo/reajuste somam.
       let novoValorAtual = current.valorAtual || 0;
-      if (ajuste > 0) novoValorAtual += ajuste;
+      if (ajuste && ajuste !== 0) {
+        if (tipo === 'supressao') {
+          novoValorAtual -= Math.abs(ajuste);
+        } else {
+          novoValorAtual += ajuste;
+        }
+      }
       const novoSaldo = Math.round((novoValorAtual - (current.valorPagoAcumulado || 0)) * 100) / 100;
 
       const contractFieldUpdates: any = {
@@ -1044,11 +1056,13 @@ function App() {
 
       const entry: any = {
         timestamp: now,
-        user: userProfile?.email?.toLowerCase() || userProfile?.uid || undefined,
         tipo,
         note,
-        documents: serializedDocs.length > 0 ? serializedDocs : undefined,
       };
+      // Firestore rejeita campos undefined — só inclui se houver valor.
+      const userEmail = userProfile?.email?.toLowerCase() || userProfile?.uid;
+      if (userEmail) entry.user = userEmail;
+      if (serializedDocs.length > 0) entry.documents = serializedDocs;
 
       const contractFieldUpdates: any = {
         situacao: 'Encerrado',

@@ -343,14 +343,30 @@ export function TermoAditivoModal({ isOpen, onClose, contract, onSave }: TermoAd
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase text-secti-muted">
-                Acréscimo no valor do contrato
+                {tipo === 'supressao'
+                  ? 'Supressão no valor do contrato'
+                  : tipo === 'acrescimo'
+                    ? 'Acréscimo no valor do contrato'
+                    : tipo === 'reajuste'
+                      ? 'Reajuste no valor do contrato'
+                      : 'Ajuste no valor do contrato'}
               </label>
               <CurrencyInput
                 className="bg-gray-50 border-secti-border font-mono"
                 value={ajuste}
                 onValueChange={(num) => setAjuste(num)}
-                placeholder="0,00"
+                placeholder={tipo === 'supressao' ? 'Valor a suprimir (sempre positivo)' : '0,00'}
               />
+              {tipo === 'supressao' && ajuste > 0 && contract && (
+                <p className="text-[11px] text-red-600 font-medium">
+                  Este valor será <strong>subtraído</strong> do valor atual do contrato.
+                </p>
+              )}
+              {tipo === 'acrescimo' && ajuste > 0 && contract && (
+                <p className="text-[11px] text-green-600 font-medium">
+                  Este valor será <strong>somado</strong> ao valor atual do contrato.
+                </p>
+              )}
             </div>
 
             {/* Upload de Documentos */}

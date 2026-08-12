@@ -177,6 +177,26 @@ export async function saveTermoWithFallback(
   }
 }
 
+/** Remove recursivamente chaves cujo valor seja undefined (Firestore as
+ *  rejeita com "Unsupported field value: undefined").  Tambem limpa arrays
+ *  que contenham itens undefined. */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => stripUndefined(v))
+      .filter((v) => v !== undefined) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const k of Object.keys(value as any)) {
+      const v = stripUndefined((value as any)[k]);
+      if (v !== undefined) out[k] = v;
+    }
+    return out as T;
+  }
+  return value;
+}
+
 function buildPayload(opts: SaveDocumentInput, entry: any): any {
   // monta o payload exatamente como antes, mantendo history trimado e campos
   // extras do contrato (situacao, vigenciaAtual, etc.) opcionais
@@ -190,7 +210,9 @@ function buildPayload(opts: SaveDocumentInput, entry: any): any {
   if (opts.contractFieldUpdates) {
     Object.assign(payload, opts.contractFieldUpdates);
   }
-  return payload;
+  // Garantia: nenhum campo undefined chega ao Firestore (protege contra
+  // dados antigos ou campos opcionais nao preenchidos).
+  return stripUndefined(payload);
 }
 
 function isSizeError(msg: string): boolean {
